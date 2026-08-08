@@ -1,0 +1,6 @@
+{
+    "Security Group": ["EC2"],
+    "EC2": ["Load Balancer"],
+    "Load Balancer": ["Web Application"],
+    "Web Application": []
+}

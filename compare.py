@@ -1,5 +1,5 @@
 import json
-
+from dependency_analysis import analyze_resource 
 # Read old configuration
 with open("old_config.json", "r") as file:
     old_config = json.load(file)
@@ -27,3 +27,10 @@ for key in old_config:
 
 if not change_found:
     print("No configuration changes found.")
+else:
+    resource = old_config.get("resource")
+
+    if resource:
+        analyze_resource(resource)
+    else:
+        print("Resource information not found.")
