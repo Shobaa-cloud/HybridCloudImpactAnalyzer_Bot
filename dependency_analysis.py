@@ -11,12 +11,19 @@ def find_dependencies(resource, level=0):
 
     dependent_resources = dependencies.get(resource, [])
 
+    all_dependencies = []
+
     for item in dependent_resources:
         print("  " * level + "→", item)
 
-        # Find the next level of dependency
-        find_dependencies(item, level + 1)
+        all_dependencies.append(item)
 
+        # Find the next level
+        child_dependencies = find_dependencies(item, level + 1)
+
+        all_dependencies.extend(child_dependencies)
+
+    return all_dependencies
 
 def analyze_resource(resource):
     """Analyze dependencies of a resource."""
@@ -29,4 +36,6 @@ def analyze_resource(resource):
     print("Dependency Chain:")
     print(resource)
 
-    find_dependencies(resource)
+    all_dependencies = find_dependencies(resource)
+
+    return all_dependencies
