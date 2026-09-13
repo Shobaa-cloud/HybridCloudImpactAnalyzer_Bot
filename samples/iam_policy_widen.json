@@ -1,0 +1,60 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.7.5",
+  "resource_changes": [
+    {
+      "address": "aws_iam_role_policy.lambda_policy",
+      "mode": "managed",
+      "type": "aws_iam_role_policy",
+      "name": "lambda_policy",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "id": "lambda-policy-001",
+          "policy": "{\"Statement\":[{\"Effect\":\"Allow\",\"Action\":[\"s3:GetObject\"],\"Resource\":\"arn:aws:s3:::reports-bucket/*\"}]}"
+        },
+        "after": {
+          "id": "lambda-policy-001",
+          "policy": "{\"Statement\":[{\"Effect\":\"Allow\",\"Action\":\"*\",\"Resource\":\"*\"}]}"
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_lambda_function.billing_processor",
+      "mode": "managed",
+      "type": "aws_lambda_function",
+      "name": "billing_processor",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["no-op"],
+        "before": {"id": "billing-processor", "tags": {"Environment": "production"}},
+        "after": {"id": "billing-processor", "tags": {"Environment": "production"}},
+        "after_unknown": {}
+      }
+    }
+  ],
+  "configuration": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "aws_iam_role_policy.lambda_policy",
+          "type": "aws_iam_role_policy",
+          "name": "lambda_policy",
+          "expressions": {}
+        },
+        {
+          "address": "aws_lambda_function.billing_processor",
+          "type": "aws_lambda_function",
+          "name": "billing_processor",
+          "expressions": {
+            "role": {
+              "references": ["aws_iam_role_policy.lambda_policy.id"]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

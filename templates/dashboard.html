@@ -28,60 +28,26 @@
         </div>
 
         <nav>
-
-            <a class="nav-item active">
-                ◉ <span>Dashboard</span>
-            </a>
-
-            <a class="nav-item">
-                ◈ <span>Impact Analysis</span>
-            </a>
-
-            <a class="nav-item">
-                ▣ <span>Resources</span>
-            </a>
-
-            <a class="nav-item">
-                ◷ <span>Change History</span>
-            </a>
-
-            <a class="nav-item">
-                ⚠ <span>Incidents</span>
-            </a>
-
-            <a class="nav-item">
-                ✓ <span>Recommendations</span>
-            </a>
-
-            <a class="nav-item">
-                ⚙ <span>Settings</span>
-            </a>
-
+            <a class="nav-item active">◉ <span>Dashboard</span></a>
+            <a class="nav-item">◷ <span>Change History</span></a>
         </nav>
 
         <div class="environment">
-
-            <small>Environment</small>
-
+            <small>Input Format</small>
             <div class="environment-box">
                 <span>☁</span>
-                AWS Production
+                Terraform Plan JSON
                 <span>⌄</span>
             </div>
-
         </div>
 
         <div class="user">
-
             <div class="avatar">A</div>
-
             <div>
                 <strong>Admin User</strong>
                 <small>admin@example.com</small>
             </div>
-
             <span>⌄</span>
-
         </div>
 
     </aside>
@@ -90,41 +56,48 @@
     <!-- MAIN CONTENT -->
     <main class="main">
 
-        <!-- HEADER -->
         <header class="header">
-
             <div>
                 <h1>🛡 Configuration Change Impact Report</h1>
             </div>
-
         </header>
+
+
+        <!-- ANALYZE PANEL -->
+        <section class="panel" style="margin-bottom: 15px;">
+            <div class="panel-title">
+                <span>▣</span>
+                <h3>Run a New Analysis</h3>
+            </div>
+
+            <form id="analyze-form" style="display:flex; gap:10px; align-items:center; flex-wrap: wrap;">
+                <select id="sample-select" style="padding:10px; border-radius:7px; background:#0b1220; color:white; border:1px solid #3a455c;">
+                    {% for sample in sample_files %}
+                    <option value="{{ sample }}">{{ sample }}</option>
+                    {% endfor %}
+                </select>
+
+                <span style="color:#7e899f; font-size:12px;">or upload a plan:</span>
+                <input type="file" id="plan-file" accept="application/json"
+                       style="color:#aeb7c9; font-size:12px;">
+
+                <button type="submit">▶ Analyze</button>
+            </form>
+            <p id="analyze-status" style="margin-top:10px; font-size:11px; color:#7e899f;"></p>
+        </section>
 
 
         <!-- STATUS BAR -->
         <section class="status-bar">
-
             <div class="success-icon">✓</div>
-
             <div>
-                <strong>Analysis completed successfully</strong>
-
-                <p>
-                    Generated on: 12 May 2025, 10:30 AM
-                </p>
+                <strong id="status-title">Analysis completed successfully</strong>
+                <p id="status-subtitle">Generated on: --</p>
             </div>
-
             <div class="header-buttons">
-
-                <button>
-                    ↓ Download Report
-                </button>
-
-                <button class="share">
-                    ↗ Share Report
-                </button>
-
+                <button id="download-btn">↓ Download Report</button>
+                <button class="share" id="share-btn">↗ Share Report</button>
             </div>
-
         </section>
 
 
@@ -132,72 +105,39 @@
         <section class="metrics">
 
             <div class="metric-card risk-card">
-
                 <div>
                     <label>RISK LEVEL</label>
-
-                    <h2>HIGH</h2>
-
-                    <p>
-                        This change could cause major
-                        impact to your system.
-                    </p>
+                    <h2 id="metric-risk">--</h2>
+                    <p>Based on blast radius and change sensitivity.</p>
                 </div>
-
                 <div class="metric-icon">⚠</div>
-
             </div>
 
-
             <div class="metric-card">
-
                 <div>
                     <label>CONFIDENCE SCORE</label>
-
-                    <h2 class="green">91%</h2>
-
-                    <p>
-                        High confidence based on
-                        hybrid analysis.
-                    </p>
+                    <h2 class="green" id="metric-confidence">--</h2>
+                    <p>Grows as more historical analyses accumulate.</p>
                 </div>
-
                 <div class="graph">⌁⌁⌁</div>
-
             </div>
 
-
             <div class="metric-card">
-
                 <div>
                     <label>AFFECTED RESOURCES</label>
-
-                    <h2 class="blue" id="affected">7</h2>
-
-                    <p>
-                        Across 4 AWS services.
-                    </p>
+                    <h2 class="blue" id="metric-affected">--</h2>
+                    <p id="metric-affected-sub">Computed from the dependency graph.</p>
                 </div>
-
                 <div class="metric-icon blue">▰</div>
-
             </div>
 
-
             <div class="metric-card">
-
                 <div>
                     <label>SIMILAR PAST CHANGES</label>
-
-                    <h2 class="purple">4</h2>
-
-                    <p>
-                        Found in historical database.
-                    </p>
+                    <h2 class="purple" id="metric-similar">--</h2>
+                    <p>Found in historical database.</p>
                 </div>
-
                 <div class="metric-icon purple">◴</div>
-
             </div>
 
         </section>
@@ -206,112 +146,32 @@
         <!-- DETAILS + DEPENDENCY -->
         <section class="two-column">
 
-            <!-- CHANGE DETAILS -->
             <div class="panel">
-
                 <div class="panel-title">
                     <span>✎</span>
                     <h3>Change Details</h3>
                 </div>
-
                 <table>
-
-                    <tr>
-                        <td>Change Type</td>
-                        <td>Modify Security Group Rule</td>
-                    </tr>
-
-                    <tr>
-                        <td>Resource</td>
-                        <td>sg-0abc123def456ghi7</td>
-                    </tr>
-
-                    <tr>
-                        <td>Resource Name</td>
-                        <td>Web-Security-Group</td>
-                    </tr>
-
-                    <tr>
-                        <td>Change Description</td>
-                        <td>
-                            Remove inbound rule:
-                            TCP 22 (SSH) from 0.0.0.0/0
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <td>Requested By</td>
-                        <td>admin@example.com</td>
-                    </tr>
-
-                    <tr>
-                        <td>Requested At</td>
-                        <td>12 May 2025, 10:15 AM</td>
-                    </tr>
-
+                    <tr><td>Change Action</td><td id="detail-action">--</td></tr>
+                    <tr><td>Resource</td><td id="detail-resource">--</td></tr>
+                    <tr><td>Resource Type</td><td id="detail-type">--</td></tr>
+                    <tr><td>Changed Fields</td><td id="detail-fields">--</td></tr>
+                    <tr><td>Plan Source</td><td id="detail-source">--</td></tr>
                 </table>
-
             </div>
 
-
-            <!-- DEPENDENCY PATH -->
             <div class="panel">
-
                 <div class="panel-title">
                     <span>♧</span>
-                    <h3>Affected Resources & Dependency Path</h3>
+                    <h3>Dependency Chain (deepest cascade)</h3>
                 </div>
-
-                <div class="dependency">
-
-                    <div class="resource security">
-                        <div class="resource-icon">♢</div>
-                        <strong>Security Group</strong>
-                        <span>Web-Security-Group</span>
-                    </div>
-
-                    <div class="arrow">→</div>
-
-                    <div class="resource ec2">
-                        <div class="resource-icon">▣</div>
-                        <strong>EC2 Instance</strong>
-                        <span>Web-Server</span>
-                    </div>
-
-                    <div class="arrow">→</div>
-
-                    <div class="resource rds">
-                        <div class="resource-icon">▤</div>
-                        <strong>RDS Database</strong>
-                        <span>App-Database</span>
-                    </div>
-
-                    <div class="arrow">→</div>
-
-                    <div class="resource app">
-                        <div class="resource-icon">▥</div>
-                        <strong>Application</strong>
-                        <span>Login API</span>
-                    </div>
-
-                    <div class="arrow">→</div>
-
-                    <div class="resource end">
-                        <div class="resource-icon">◎</div>
-                        <strong>End Service</strong>
-                        <span>Web Frontend</span>
-                    </div>
-
+                <div class="dependency" id="dependency-chain">
+                    <div class="dependency-note">Run an analysis to see the dependency chain.</div>
                 </div>
-
                 <div class="dependency-note">
-
-                    Impact propagates from the changed resource
-                    to dependent resources through direct
-                    and indirect dependencies.
-
+                    Built from Terraform's own resource reference graph via NetworkX --
+                    impact propagates from the changed resource to every reachable dependent.
                 </div>
-
             </div>
 
         </section>
@@ -320,116 +180,42 @@
         <!-- IMPACT + HISTORY -->
         <section class="two-column">
 
-            <!-- IMPACT SUMMARY -->
             <div class="panel">
-
                 <div class="panel-title">
                     <span>!</span>
                     <h3>Impact Summary</h3>
                 </div>
-
                 <div class="impact-layout">
-
-                    <div class="impact-list">
-
-                        <div>
-                            <span>Availability Impact</span>
-                            <b class="high">HIGH</b>
-                        </div>
-
-                        <div>
-                            <span>Performance Impact</span>
-                            <b class="medium">MEDIUM</b>
-                        </div>
-
-                        <div>
-                            <span>Security Impact</span>
-                            <b class="high">HIGH</b>
-                        </div>
-
-                        <div>
-                            <span>Data Impact</span>
-                            <b class="low">LOW</b>
-                        </div>
-
-                        <div>
-                            <span>Overall Risk</span>
-                            <b class="high">HIGH</b>
-                        </div>
-
+                    <div class="impact-list" id="impact-list">
+                        <div><span>Impact Level</span><b id="impact-level-badge" class="low">--</b></div>
+                        <div><span>Risk Level</span><b id="impact-risk-badge" class="low">--</b></div>
+                        <div><span>Touches Security-Sensitive Field</span><b id="impact-sensitive-badge" class="low">--</b></div>
                     </div>
-
                     <div class="score-circle">
-
-                        <strong>91%</strong>
-
-                        <span>Overall Risk Score</span>
-
+                        <strong id="impact-score">--</strong>
+                        <span>Impact Score</span>
                     </div>
-
                 </div>
-
             </div>
 
-
-            <!-- PAST CHANGES -->
             <div class="panel">
-
                 <div class="panel-title">
                     <span>◷</span>
                     <h3>Similar Past Changes</h3>
                 </div>
-
                 <table class="history">
-
                     <thead>
                         <tr>
-                            <th>Change ID</th>
-                            <th>Description</th>
+                            <th>Resource</th>
+                            <th>Action</th>
+                            <th>Risk</th>
                             <th>Outcome</th>
-                            <th>Impact</th>
-                            <th>Date</th>
                         </tr>
                     </thead>
-
-                    <tbody>
-
-                        <tr>
-                            <td>CHG-2025-0412</td>
-                            <td>Removed SSH from SG</td>
-                            <td>EC2 SSH access failed</td>
-                            <td><b class="high">HIGH</b></td>
-                            <td>12 Apr 2025</td>
-                        </tr>
-
-                        <tr>
-                            <td>CHG-2025-0328</td>
-                            <td>Removed SSH from SG</td>
-                            <td>Deployment pipeline failed</td>
-                            <td><b class="high">HIGH</b></td>
-                            <td>28 Mar 2025</td>
-                        </tr>
-
-                        <tr>
-                            <td>CHG-2025-0215</td>
-                            <td>Removed SSH from SG</td>
-                            <td>EC2 unreachable</td>
-                            <td><b class="high">HIGH</b></td>
-                            <td>15 Feb 2025</td>
-                        </tr>
-
-                        <tr>
-                            <td>CHG-2025-0110</td>
-                            <td>Restricted SSH source IP</td>
-                            <td>No service disruption</td>
-                            <td><b class="low">LOW</b></td>
-                            <td>10 Jan 2025</td>
-                        </tr>
-
+                    <tbody id="history-body">
+                        <tr><td colspan="4">No similar past changes yet.</td></tr>
                     </tbody>
-
                 </table>
-
             </div>
 
         </section>
@@ -437,64 +223,32 @@
 
         <!-- RECOMMENDATIONS -->
         <section class="recommendation-panel">
-
             <div class="recommendations">
-
                 <div class="panel-title">
                     <span>✓</span>
                     <h3>Recommendations</h3>
                 </div>
-
-                <ul>
-
-                    <li>
-                        Review the change carefully.
-                        This may disrupt SSH access to EC2 instances.
-                    </li>
-
-                    <li>
-                        Consider using a bastion host or VPN
-                        instead of opening SSH to 0.0.0.0/0.
-                    </li>
-
-                    <li>
-                        Test the change in a staging environment
-                        before applying to production.
-                    </li>
-
-                    <li>
-                        Ensure application and database connectivity
-                        after the change.
-                    </li>
-
+                <ul id="recommendations-list">
+                    <li>Run an analysis to see recommendations.</li>
                 </ul>
-
             </div>
-
 
             <div class="warning">
-
                 <div class="warning-icon">⚠</div>
-
                 <div>
-
                     <span>Recommendation</span>
-
-                    <h2>REVIEW BEFORE DEPLOYMENT</h2>
-
-                    <p>
-                        This change requires careful consideration.
-                    </p>
-
+                    <h2 id="warning-headline">REVIEW BEFORE DEPLOYMENT</h2>
+                    <p>This change requires careful consideration.</p>
                 </div>
-
             </div>
-
         </section>
 
     </main>
 
 </div>
+
+<script id="initial-analysis" type="application/json">{{ latest | tojson }}</script>
+<script src="{{ url_for('static', filename='script.js') }}"></script>
 
 </body>
 </html>

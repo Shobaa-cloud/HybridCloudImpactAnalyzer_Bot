@@ -531,6 +531,12 @@ th {
     color: #69dca0;
 }
 
+.critical {
+    background: #4a0f14;
+    color: #ff4d4d;
+    font-weight: bold;
+}
+
 .score-circle {
     width: 145px;
     height: 145px;
