@@ -24,17 +24,28 @@ GitHub pull request.
   weighted by how many hops away a resource is and whether it's tagged
   production or internet-facing — not just "how many resources point at this
   one."
-- **Provider-agnostic ("hybrid cloud" for real).** Terraform plan JSON is the
-  same format for AWS, Azure, and GCP resources, so the core pipeline isn't
-  AWS-only, unlike a CloudTrail/Config-based design.
-- **Learns from history.** Every analysis is persisted; risk assessments for a
-  resource type + action get more confident as more real outcomes are
-  recorded (`/api/analyses/<id>/outcome`), instead of a fixed confidence
-  number.
-- **Ships as a CI/CD gate.** `.github/workflows/blast-radius-check.yml` +
-  `ci/pr_commenter.py` post the blast-radius report as a PR comment
-  automatically — closer to what companies actually build in-house for this
-  problem than a dashboard you have to remember to check.
+- **Genuinely multi-cloud, not "hybrid" in name only.** The severity rules and
+  public-exposure detection recognize AWS, Azure, *and* GCP resource shapes
+  side by side (`analyzer/risk_engine.py`, `analyzer/graph_builder.py`) —
+  `samples/multi_cloud_migration.json` proves a single blast-radius trace
+  crossing all three providers in one plan (an Azure firewall rule change
+  cascades to an Azure VM, which cascades to a GCP storage bucket). Most
+  drift/policy tools (Checkov, tfsec, AWS Config) are single-cloud.
+- **Tells you how to undo it, before you apply it.** `analyzer/rollback_generator.py`
+  computes the exact rollback steps for every change up front — not
+  something you improvise mid-incident.
+- **Speaks to non-engineers too.** `analyzer/summary_generator.py` produces a
+  plain-English paragraph above all the technical detail, so a manager or a
+  client can understand the risk without knowing what a security group is.
+- **Honest about what "confidence" means.** The score shown is data
+  completeness (how much of the plan is knowable before apply), not a vague
+  "safety" number inflated by how often we've seen a pattern before — a
+  deliberate fix after finding that conflation misleading during review.
+- **Ships as a CI/CD gate, not a dashboard you have to remember to check.**
+  `.github/workflows/blast-radius-check.yml` + `ci/pr_commenter.py` post the
+  blast-radius report as a PR comment automatically, and **fail the check**
+  (blocking merge under branch protection) when risk reaches CRITICAL —
+  closer to what companies actually build in-house for this problem.
 
 ## Architecture
 
@@ -99,6 +110,7 @@ Terraform installed:
 | `iam_policy_widen.json` | IAM policy widened to `Action: "*"` | CRITICAL |
 | `route_table_change.json` | Production route table repointed to a different NAT gateway | HIGH |
 | `log_retention_change.json` | CloudWatch log retention changed, no dependents | LOW |
+| `multi_cloud_migration.json` | Azure firewall rule opened, cascades to an Azure VM then a GCP bucket | CRITICAL |
 
 To analyze a real plan instead: `terraform show -json tfplan > my_plan.json`,
 then feed `my_plan.json` to the CLI, the dashboard's upload box, or the CI
@@ -125,15 +137,47 @@ python ci/pr_commenter.py samples/sg_open_ssh.json      # exits 1 (CRITICAL)
 python ci/pr_commenter.py samples/log_retention_change.json   # exits 0 (LOW)
 ```
 
-## Optional: live AWS enrichment
+## Optional: live AWS state sync (read-only, zero billable resources)
 
-`analyzer/aws_enrichment.py` uses boto3 to pull real security group / EC2 tag
-data for resources referenced in a plan, when `ENABLE_AWS_ENRICHMENT=true`
-and AWS credentials are configured. It's off by default so the tool works
-fully offline; this is the natural extension point for the CloudTrail /
-AWS Config / EventBridge / Lambda / SNS live-monitoring pipeline described in
-the original project proposal, if you get access to an AWS account for a
-later phase. (Not exercised against a live account in this build.)
+If you want the dashboard to already know what your AWS account currently
+looks like — instead of only analyzing an uploaded Terraform plan — you can
+connect a real (free-tier) AWS account in a way designed to create **zero
+new billable resources**: no S3 bucket, no Lambda, no CloudTrail Trail, no
+EventBridge rule. It only makes 3 read-only "describe" API calls (which AWS
+does not charge for), and only when you explicitly trigger it — never on a
+schedule.
+
+**Setup:**
+1. In the AWS Console, create an IAM user with **programmatic access only**
+   (no console password).
+2. Attach the policy in [`iam-readonly-policy.json`](iam-readonly-policy.json)
+   to that user — it grants *exactly* `DescribeSecurityGroups`,
+   `DescribeInstances`, and `DescribeDBInstances` and nothing else. This
+   means even a bug in this code cannot create or change anything: AWS
+   itself would reject any other API call with `AccessDenied`.
+3. Add the resulting access key to your `.env`:
+   ```
+   AWS_ACCESS_KEY_ID=...
+   AWS_SECRET_ACCESS_KEY=...
+   AWS_DEFAULT_REGION=us-east-1
+   ```
+4. **Strongly recommended regardless:** in AWS Billing → Budgets, create a
+   $0 (zero-spend) budget alert. It's itself free and emails you the instant
+   any charge appears — a safety net independent of anything in this repo.
+5. Run `python sync_current_state.py` whenever you want to refresh the
+   snapshot — it saves to `current_state_snapshot.json` (gitignored, since
+   it contains your real resource IDs/tags) and never runs on its own.
+   The dashboard's "Live AWS Snapshot" panel shows the same sync, with a
+   "Sync Now" button, and displays how long ago it last ran.
+
+This is separate from `analyzer/aws_enrichment.py`, which uses the same
+read-only philosophy to enrich a *plan's* graph with live tag data when
+`ENABLE_AWS_ENRICHMENT=true`. Neither of these builds the full CloudTrail /
+AWS Config / EventBridge / Lambda / SNS pipeline from the original project
+proposal — that architecture requires provisioning a CloudTrail Trail (which
+needs an S3 bucket, only free for an account's first 12 months) and was
+deliberately not built here, given a zero-billing-risk requirement for this
+project.
 
 ## Tests
 

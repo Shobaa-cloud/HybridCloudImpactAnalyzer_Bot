@@ -1,11 +1,21 @@
 """
 MySQL/SQLAlchemy-backed history.
 
-Powers two things the original prototype faked with hardcoded numbers:
-  - the "Similar Past Changes" panel (real past analyses instead of a
-    static table)
-  - the confidence score (grows as more historical data accumulates,
-    instead of a fixed "91%")
+Powers the "Similar Past Changes" panel: real past analyses instead of
+a static table.
+
+Note on the score computed here (stored as `confidence_score` in the
+DB, shown in the UI as "Data Completeness"): an earlier version of this
+also boosted the score based on how many similar past analyses existed
+-- i.e. "we've seen this pattern before, so we're more confident."
+That was removed deliberately: seeing a pattern before says nothing
+about whether it's actually safe, and conflating "familiar" with
+"confident it's low-risk" is misleading. The score now measures exactly
+one thing -- how much of the Terraform plan's data is fully known
+before apply, versus how much Terraform itself marks as "unknown until
+you actually apply it." That's a real, defensible signal about how
+much there is to analyze; "similar past changes" stays purely an
+informational lookup (see find_similar_past_changes), never a number.
 """
 
 import json
@@ -41,33 +51,29 @@ def find_similar_past_changes(session, resource_type: str, change_action: str,
     return query.limit(limit).all()
 
 
-def compute_confidence_score(session, resource_type: str, change_action: str,
-                              after_unknown: dict, changed_field_count: int) -> float:
+def compute_confidence_score(after_unknown: dict, changed_field_count: int) -> float:
+    """
+    Measures data completeness only: how much of this change's before/
+    after state is actually known pre-apply, versus how much Terraform
+    marks "unknown until apply" (e.g. a generated ID). Deliberately does
+    NOT factor in how many similar past changes exist -- see the module
+    docstring for why that was removed.
+    """
     score = Config.BASE_CONFIDENCE_SCORE
 
-    # Terraform marks attributes it can't know until after apply (e.g.
-    # generated IDs). Fewer unknowns pre-apply means a more reliable
-    # before/after diff to analyze.
     unknown_count = sum(1 for v in after_unknown.values() if v is True)
     total_fields = max(1, changed_field_count + unknown_count)
     known_ratio = 1 - (unknown_count / total_fields)
-    score += round(known_ratio * 20)
-
-    similar_count = (
-        session.query(Analysis)
-        .filter(Analysis.resource_type == resource_type)
-        .filter(Analysis.change_action == change_action)
-        .count()
-    )
-    score += min(20, similar_count * 4)
+    score += round(known_ratio * (Config.MAX_CONFIDENCE_SCORE - Config.BASE_CONFIDENCE_SCORE))
 
     return min(Config.MAX_CONFIDENCE_SCORE, score)
 
 
 def save_analysis(session, *, plan_source: str, resource_address: str, resource_type: str,
                    change_action: str, changed_fields: dict, affected_count: int,
-                   impact_level: str, risk_level: str, confidence_score: float,
-                   dependency_chain: list[str], recommendations: list[str]) -> Analysis:
+                   affected_resources: list[str], impact_level: str, risk_level: str,
+                   confidence_score: float, dependency_chain: list[str],
+                   recommendations: list[str]) -> Analysis:
     analysis = Analysis(
         plan_source=plan_source,
         resource_address=resource_address,
@@ -79,6 +85,7 @@ def save_analysis(session, *, plan_source: str, resource_address: str, resource_
         risk_level=risk_level,
         confidence_score=confidence_score,
         dependency_path=json.dumps(dependency_chain),
+        affected_resources=json.dumps(affected_resources),
         recommendations=json.dumps(recommendations),
     )
     session.add(analysis)

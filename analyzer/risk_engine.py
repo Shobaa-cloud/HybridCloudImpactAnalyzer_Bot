@@ -6,23 +6,44 @@ This replaces it with a general model: every change gets a base severity
 from its resource type, is bumped for destructive actions and for
 touching security-sensitive fields, and is then combined with the
 blast-radius impact level computed by impact_engine.
+
+These keyword lists match by substring, not exact resource type, and
+deliberately include AWS, Azure, and GCP equivalents side by side
+(e.g. "security_group" for AWS/matches Azure's
+"network_security_group" too; "firewall" for GCP's
+"google_compute_firewall") -- this is what makes the tool genuinely
+work across a multi-cloud Terraform plan rather than only AWS.
 """
 
 LEVELS = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
 
 HIGH_SEVERITY_TYPES = (
-    "security_group", "network_acl", "route_table", "iam", "kms",
-    "nat_gateway", "internet_gateway", "vpn", "waf",
+    # Networking / access-control surfaces, across providers.
+    "security_group", "security_rule", "network_acl", "route_table",
+    "firewall", "nat_gateway", "internet_gateway", "vpn", "waf",
+    # Identity/permissions, across providers.
+    "iam", "role_assignment", "role_binding", "key_vault", "kms",
 )
 MEDIUM_SEVERITY_TYPES = (
-    "db_instance", "rds", "s3_bucket", "instance", "subnet", "vpc",
-    "load_balancer", "lambda_function", "ecs_service", "eks_cluster",
+    # Databases, across providers.
+    "db_instance", "rds", "sql_database", "sql_server", "cosmosdb", "cloudsql",
+    # Storage, across providers.
+    "s3_bucket", "storage_bucket", "storage_account",
+    # Compute, across providers.
+    "instance", "virtual_machine", "compute_instance",
+    "subnet", "vpc", "virtual_network",
+    "load_balancer", "lambda_function", "cloud_function",
+    "ecs_service", "eks_cluster", "kubernetes_cluster", "container_cluster",
 )
 
 SENSITIVE_FIELD_KEYWORDS = (
-    "cidr_blocks", "ingress", "egress", "policy", "acl",
+    # "Open to the world" signals, across providers: AWS uses
+    # cidr_blocks/ingress, Azure uses source_address_prefix/access,
+    # GCP uses source_ranges/allow.
+    "cidr_blocks", "ingress", "egress", "source_address_prefix",
+    "source_ranges", "policy", "acl",
     "publicly_accessible", "allowed_ip", "assume_role_policy",
-    "map_public_ip_on_launch", "public_access",
+    "map_public_ip_on_launch", "public_access", "public_network_access",
 )
 
 

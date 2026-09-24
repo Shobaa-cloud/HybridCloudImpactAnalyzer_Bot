@@ -83,6 +83,7 @@ def seed():
             risk_level=row["risk_level"],
             confidence_score=row["confidence_score"],
             dependency_path=json.dumps([row["resource_address"]]),
+            affected_resources=json.dumps(["aws_instance.affected_by_" + row["resource_address"].split(".")[-1]]),
             recommendations=json.dumps([]),
         )
         session.add(analysis)

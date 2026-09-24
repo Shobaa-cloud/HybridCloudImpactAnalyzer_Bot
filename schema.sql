@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS analyses (
     confidence_score    FLOAT,
 
     dependency_path     TEXT,
+    affected_resources  TEXT,
     recommendations     TEXT,
 
     INDEX idx_resource_address (resource_address),

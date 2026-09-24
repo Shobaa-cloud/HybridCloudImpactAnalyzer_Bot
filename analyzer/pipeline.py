@@ -13,6 +13,8 @@ from analyzer.aws_enrichment import enrich_graph_with_aws
 from analyzer.impact_engine import assess_impact
 from analyzer.risk_engine import assess_risk
 from analyzer.recommendation_engine import generate_recommendations
+from analyzer.rollback_generator import generate_rollback_plan
+from analyzer.summary_generator import generate_plain_summary
 from analyzer.history import (
     find_similar_past_changes, compute_confidence_score, save_analysis, serialize_similar_change,
 )
@@ -35,9 +37,6 @@ def analyze_plan(plan: dict, plan_source: str, session) -> list[dict]:
             impact_level=impact["impact_level"],
         )
         confidence_score = compute_confidence_score(
-            session,
-            resource_type=change.resource_type,
-            change_action=change.action,
             after_unknown=change.after_unknown,
             changed_field_count=len(change.changed_fields),
         )
@@ -45,6 +44,19 @@ def analyze_plan(plan: dict, plan_source: str, session) -> list[dict]:
             resource_type=change.resource_type,
             action=change.action,
             changed_fields=change.changed_fields,
+            risk_level=risk["risk_level"],
+        )
+        rollback_plan = generate_rollback_plan(
+            resource_address=change.address,
+            action=change.action,
+            changed_fields=change.changed_fields,
+        )
+        plain_summary = generate_plain_summary(
+            resource_address=change.address,
+            resource_type=change.resource_type,
+            action=change.action,
+            affected_count=impact["affected_count"],
+            affected_resources=impact["affected_resources"],
             risk_level=risk["risk_level"],
         )
 
@@ -56,6 +68,7 @@ def analyze_plan(plan: dict, plan_source: str, session) -> list[dict]:
             change_action=change.action,
             changed_fields=change.changed_fields,
             affected_count=impact["affected_count"],
+            affected_resources=impact["affected_resources"],
             impact_level=impact["impact_level"],
             risk_level=risk["risk_level"],
             confidence_score=confidence_score,
@@ -81,6 +94,8 @@ def analyze_plan(plan: dict, plan_source: str, session) -> list[dict]:
             "confidence_score": confidence_score,
             "dependency_chain": impact["dependency_chain"],
             "recommendations": recommendations,
+            "rollback_plan": rollback_plan,
+            "plain_summary": plain_summary,
             "similar_past_changes": [serialize_similar_change(a) for a in similar],
         })
 

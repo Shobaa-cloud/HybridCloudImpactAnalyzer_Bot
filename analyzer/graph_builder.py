@@ -21,15 +21,26 @@ def _extract_node_metadata(plan: dict) -> dict[str, dict]:
         tags = state.get("tags") or {}
         environment = str(tags.get("Environment") or tags.get("environment") or "").lower()
 
+        # "Open to the world" looks different per provider: AWS uses
+        # cidr_blocks, Azure uses source_address_prefix, GCP uses
+        # source_ranges. Checking all three is what makes criticality
+        # weighting actually work on a multi-cloud plan, not just AWS.
         is_public = False
         cidr_blocks = state.get("cidr_blocks") or []
         if any(str(c).strip() == "0.0.0.0/0" for c in cidr_blocks):
+            is_public = True
+        if str(state.get("source_address_prefix", "")).strip() in ("*", "0.0.0.0/0"):
+            is_public = True
+        source_ranges = state.get("source_ranges") or []
+        if any(str(r).strip() == "0.0.0.0/0" for r in source_ranges):
             is_public = True
         if state.get("publicly_accessible") is True:
             is_public = True
         if state.get("map_public_ip_on_launch") is True:
             is_public = True
         if state.get("acl") in ("public-read", "public-read-write"):
+            is_public = True
+        if state.get("public_network_access_enabled") is True:
             is_public = True
 
         metadata[address] = {

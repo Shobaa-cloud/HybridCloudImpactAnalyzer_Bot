@@ -87,6 +87,26 @@
         </section>
 
 
+        <!-- LIVE AWS SNAPSHOT -->
+        <section class="panel" style="margin-bottom: 15px;">
+            <div class="panel-title">
+                <span>☁</span>
+                <h3>Live AWS Snapshot (read-only, on-demand)</h3>
+            </div>
+
+            <p id="snapshot-status" style="font-size:11px; color:#7e899f; margin-bottom:10px;">
+                Not synced yet.
+            </p>
+
+            <button id="sync-btn" type="button">⟳ Sync Now (read-only)</button>
+            <p style="margin-top:8px; font-size:10px; color:#5c6679;">
+                Makes 3 read-only AWS calls (DescribeSecurityGroups, DescribeInstances,
+                DescribeDBInstances). Creates nothing, runs only when you click this.
+                Requires AWS credentials configured -- see README.
+            </p>
+        </section>
+
+
         <!-- STATUS BAR -->
         <section class="status-bar">
             <div class="success-icon">✓</div>
@@ -98,6 +118,18 @@
                 <button id="download-btn">↓ Download Report</button>
                 <button class="share" id="share-btn">↗ Share Report</button>
             </div>
+        </section>
+
+
+        <!-- PLAIN ENGLISH SUMMARY -->
+        <section class="panel" style="margin-bottom: 15px; border-color:#2e3a52;">
+            <div class="panel-title">
+                <span>💬</span>
+                <h3>In Plain English (no cloud background needed)</h3>
+            </div>
+            <p id="plain-summary" style="font-size:13px; line-height:1.6; color:#dce2ef;">
+                Run an analysis to see a plain-English explanation here.
+            </p>
         </section>
 
 
@@ -115,9 +147,9 @@
 
             <div class="metric-card">
                 <div>
-                    <label>CONFIDENCE SCORE</label>
+                    <label>DATA COMPLETENESS</label>
                     <h2 class="green" id="metric-confidence">--</h2>
-                    <p>Grows as more historical analyses accumulate.</p>
+                    <p>How much of this change's data is known pre-apply (not a safety score).</p>
                 </div>
                 <div class="graph">⌁⌁⌁</div>
             </div>
@@ -241,6 +273,18 @@
                     <p>This change requires careful consideration.</p>
                 </div>
             </div>
+        </section>
+
+
+        <!-- ROLLBACK PLAN -->
+        <section class="panel" style="margin-top:15px;">
+            <div class="panel-title">
+                <span>↺</span>
+                <h3>Rollback Plan (computed before you even apply the change)</h3>
+            </div>
+            <ol id="rollback-list" style="padding-left:20px; font-size:11px; color:#b6c0d1; line-height:1.7;">
+                <li>Run an analysis to see the rollback steps.</li>
+            </ol>
         </section>
 
     </main>

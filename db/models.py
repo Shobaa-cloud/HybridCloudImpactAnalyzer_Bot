@@ -28,6 +28,7 @@ class Analysis(Base):
     confidence_score = Column(Float)
 
     dependency_path = Column(Text)
+    affected_resources = Column(Text)
     recommendations = Column(Text)
 
     outcomes = relationship("IncidentOutcome", back_populates="analysis")

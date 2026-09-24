@@ -7,6 +7,9 @@ from db import init_db, SessionLocal
 from db.models import Analysis
 from analyzer.pipeline import analyze_plan
 from analyzer.history import record_outcome, find_similar_past_changes, serialize_similar_change
+from analyzer.live_state import fetch_live_snapshot, save_snapshot, load_snapshot
+from analyzer.rollback_generator import generate_rollback_plan
+from analyzer.summary_generator import generate_plain_summary
 
 SAMPLES_DIR = os.path.join(os.path.dirname(__file__), "samples")
 
@@ -22,6 +25,9 @@ def _analysis_to_dict(analysis: Analysis, session=None) -> dict:
         )
         similar = [serialize_similar_change(a) for a in similar_rows]
 
+    changed_fields = json.loads(analysis.changed_attributes or "{}")
+    affected_resources = json.loads(analysis.affected_resources or "[]")
+
     return {
         "id": analysis.id,
         "created_at": analysis.created_at.isoformat() if analysis.created_at else None,
@@ -29,13 +35,27 @@ def _analysis_to_dict(analysis: Analysis, session=None) -> dict:
         "resource_address": analysis.resource_address,
         "resource_type": analysis.resource_type,
         "change_action": analysis.change_action,
-        "changed_fields": json.loads(analysis.changed_attributes or "{}"),
+        "changed_fields": changed_fields,
         "affected_count": analysis.affected_count,
+        "affected_resources": affected_resources,
         "impact_level": analysis.impact_level,
         "risk_level": analysis.risk_level,
         "confidence_score": analysis.confidence_score,
         "dependency_chain": json.loads(analysis.dependency_path or "[]"),
         "recommendations": json.loads(analysis.recommendations or "[]"),
+        "rollback_plan": generate_rollback_plan(
+            resource_address=analysis.resource_address,
+            action=analysis.change_action,
+            changed_fields=changed_fields,
+        ),
+        "plain_summary": generate_plain_summary(
+            resource_address=analysis.resource_address,
+            resource_type=analysis.resource_type,
+            action=analysis.change_action,
+            affected_count=analysis.affected_count,
+            affected_resources=affected_resources,
+            risk_level=analysis.risk_level,
+        ),
         "similar_past_changes": similar,
     }
 
@@ -124,23 +144,75 @@ def api_download_report(analysis_id):
     lines = [
         "HYBRID CLOUD CONFIGURATION CHANGE IMPACT REPORT",
         "=" * 50,
-        f"Resource:          {data['resource_address']}",
-        f"Change Action:     {data['change_action']}",
-        f"Changed Fields:    {', '.join(data['changed_fields']) or '(none)'}",
-        f"Affected Resources: {data['affected_count']}",
-        f"Impact Level:      {data['impact_level']}",
-        f"Risk Level:        {data['risk_level']}",
-        f"Confidence Score:  {data['confidence_score']}%",
-        f"Dependency Chain:  {' -> '.join(data['dependency_chain'])}",
+        "",
+        "Summary (plain English):",
+        f"  {data['plain_summary']}",
+        "",
+        f"Resource:            {data['resource_address']}",
+        f"Change Action:       {data['change_action']}",
+        f"Changed Fields:      {', '.join(data['changed_fields']) or '(none)'}",
+        f"Affected Resources:  {data['affected_count']}",
+        f"Impact Level:        {data['impact_level']}",
+        f"Risk Level:          {data['risk_level']}",
+        f"Data Completeness:   {data['confidence_score']}%",
+        f"Dependency Chain:    {' -> '.join(data['dependency_chain'])}",
         "",
         "Recommendations:",
-    ] + [f"  - {r}" for r in data["recommendations"]]
+    ] + [f"  - {r}" for r in data["recommendations"]] + [
+        "",
+        "Rollback Plan (if this change needs to be undone):",
+    ] + [f"  {i+1}. {step}" for i, step in enumerate(data["rollback_plan"])]
 
     return Response(
         "\n".join(lines),
         mimetype="text/plain",
         headers={"Content-Disposition": f"attachment; filename=impact-report-{analysis_id}.txt"},
     )
+
+
+@app.route("/api/current-state")
+def api_current_state():
+    snapshot = load_snapshot()
+    if snapshot is None:
+        return jsonify({"synced": False})
+    counts = {}
+    for resource in snapshot["resources"].values():
+        counts[resource["resource_type"]] = counts.get(resource["resource_type"], 0) + 1
+    return jsonify({
+        "synced": True,
+        "synced_at": snapshot["synced_at"],
+        "region": snapshot["region"],
+        "counts": counts,
+        "errors": snapshot.get("errors", []),
+    })
+
+
+@app.route("/api/sync-aws-state", methods=["POST"])
+def api_sync_aws_state():
+    """
+    Triggers the same 3 read-only AWS calls as sync_current_state.py.
+    Only runs when a human clicks the button -- never on a schedule.
+    """
+    try:
+        snapshot = fetch_live_snapshot()
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 500
+
+    if not snapshot["resources"] and snapshot["errors"]:
+        return jsonify({"error": "No resources fetched", "details": snapshot["errors"]}), 502
+
+    save_snapshot(snapshot)
+    counts = {}
+    for resource in snapshot["resources"].values():
+        counts[resource["resource_type"]] = counts.get(resource["resource_type"], 0) + 1
+
+    return jsonify({
+        "synced": True,
+        "synced_at": snapshot["synced_at"],
+        "region": snapshot["region"],
+        "counts": counts,
+        "errors": snapshot["errors"],
+    })
 
 
 if __name__ == "__main__":

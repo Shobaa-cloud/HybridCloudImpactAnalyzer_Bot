@@ -15,6 +15,13 @@ const RESOURCE_ICON_BY_TYPE = {
     aws_lambda_function: "▥",
     aws_route_table: "◈",
     aws_iam_role_policy: "◎",
+    azurerm_network_security_rule: "♢",
+    azurerm_network_security_group: "♢",
+    azurerm_linux_virtual_machine: "▣",
+    azurerm_virtual_machine: "▣",
+    google_compute_instance: "▣",
+    google_storage_bucket: "▤",
+    google_compute_firewall: "♢",
 };
 
 function badgeClass(level) {
@@ -91,6 +98,9 @@ function renderResult(result) {
     document.getElementById("status-subtitle").textContent =
         `Resource: ${result.resource_address} (${result.plan_source || "uploaded plan"})`;
 
+    document.getElementById("plain-summary").textContent =
+        result.plain_summary || "No summary available.";
+
     document.getElementById("metric-risk").textContent = result.risk_level;
     document.getElementById("metric-confidence").textContent = `${result.confidence_score}%`;
     document.getElementById("metric-affected").textContent = result.affected_count;
@@ -131,6 +141,14 @@ function renderResult(result) {
         result.risk_level === "CRITICAL" || result.risk_level === "HIGH"
             ? "REVIEW BEFORE DEPLOYMENT"
             : "SAFE TO PROCEED WITH STANDARD REVIEW";
+
+    const rollbackList = document.getElementById("rollback-list");
+    rollbackList.innerHTML = "";
+    (result.rollback_plan || []).forEach(step => {
+        const li = document.createElement("li");
+        li.textContent = step;
+        rollbackList.appendChild(li);
+    });
 }
 
 
@@ -231,5 +249,66 @@ document.getElementById("share-btn").addEventListener("click", async function ()
         alert("Report information copied!");
     } catch (error) {
         alert("Unable to copy report information.");
+    }
+});
+
+
+// ===============================
+// LIVE AWS SNAPSHOT
+// Read-only, on-demand -- only calls AWS when the button is clicked.
+// ===============================
+
+function renderSnapshotStatus(data) {
+    const statusEl = document.getElementById("snapshot-status");
+
+    if (!data.synced) {
+        statusEl.textContent = "Not synced yet. Click 'Sync Now' to pull your current AWS state (read-only).";
+        return;
+    }
+
+    const counts = Object.entries(data.counts || {})
+        .map(([type, count]) => `${count} ${type.replace("aws_", "")}`)
+        .join(", ") || "no resources found";
+
+    statusEl.textContent = `Last synced: ${new Date(data.synced_at).toLocaleString()} (region: ${data.region}) -- ${counts}`;
+
+    if (data.errors && data.errors.length > 0) {
+        statusEl.textContent += ` [${data.errors.length} resource type(s) skipped, likely missing IAM permission]`;
+    }
+}
+
+async function loadSnapshotStatus() {
+    try {
+        const response = await fetch("/api/current-state");
+        const data = await response.json();
+        renderSnapshotStatus(data);
+    } catch (e) {
+        console.warn("Could not load snapshot status.");
+    }
+}
+
+loadSnapshotStatus();
+
+document.getElementById("sync-btn").addEventListener("click", async function () {
+    const button = this;
+    const statusEl = document.getElementById("snapshot-status");
+
+    button.disabled = true;
+    statusEl.textContent = "Syncing (read-only calls to AWS)...";
+
+    try {
+        const response = await fetch("/api/sync-aws-state", { method: "POST" });
+        const data = await response.json();
+
+        if (!response.ok) {
+            statusEl.textContent = `Sync failed: ${data.error || "unknown error"}. ` +
+                "Check AWS credentials are configured (see README) and the read-only IAM policy is attached.";
+        } else {
+            renderSnapshotStatus(data);
+        }
+    } catch (error) {
+        statusEl.textContent = `Sync failed: ${error.message}`;
+    } finally {
+        button.disabled = false;
     }
 });

@@ -19,6 +19,9 @@ from analyzer.pipeline import analyze_plan
 def print_report(result: dict):
     print()
     print("=" * 60)
+    print("PLAIN-ENGLISH SUMMARY:")
+    print(f"  {result['plain_summary']}")
+    print("-" * 60)
     print(f"Resource:        {result['resource_address']}")
     print(f"Change Action:   {result['action']}")
     print(f"Changed Fields:  {', '.join(result['changed_fields']) or '(none)'}")
@@ -29,9 +32,9 @@ def print_report(result: dict):
     if not result["affected_resources"]:
         print("  (none)")
     print("-" * 60)
-    print(f"Impact Level:      {result['impact_level']} (score {result['impact_score']}/100)")
-    print(f"Risk Level:        {result['risk_level']}")
-    print(f"Confidence Score:  {result['confidence_score']}%")
+    print(f"Impact Level:       {result['impact_level']} (score {result['impact_score']}/100)")
+    print(f"Risk Level:         {result['risk_level']}")
+    print(f"Data Completeness:  {result['confidence_score']}%")
     print("-" * 60)
     print("Dependency Chain:")
     print("  " + " -> ".join(result["dependency_chain"]))
@@ -39,6 +42,10 @@ def print_report(result: dict):
     print("Recommendations:")
     for rec in result["recommendations"]:
         print(f"  - {rec}")
+    print("-" * 60)
+    print("Rollback Plan (if this needs to be undone):")
+    for i, step in enumerate(result["rollback_plan"]):
+        print(f"  {i+1}. {step}")
     if result["similar_past_changes"]:
         print("-" * 60)
         print("Similar Past Changes:")

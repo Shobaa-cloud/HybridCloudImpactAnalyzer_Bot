@@ -66,7 +66,7 @@ def build_comment_body(all_results: dict[str, list[dict]], fail_levels: set[str]
         "",
         f"Analyzed {len(all_results)} plan file(s), {len(flat)} effective change(s).",
         "",
-        "| File | Resource | Action | Impact | Risk | Affected | Confidence |",
+        "| File | Resource | Action | Impact | Risk | Affected | Data Completeness |",
         "|---|---|---|---|---|---|---|",
     ]
 
@@ -81,10 +81,19 @@ def build_comment_body(all_results: dict[str, list[dict]], fail_levels: set[str]
 
     top_plan_file, top_result = flat[0]
     lines.append("")
+    lines.append(f"**In plain English:** {top_result['plain_summary']}")
+    lines.append("")
     lines.append(f"<details><summary>Recommendations for the highest-risk change (`{top_result['resource_address']}`)</summary>")
     lines.append("")
     for rec in top_result["recommendations"]:
         lines.append(f"- {rec}")
+    lines.append("")
+    lines.append("</details>")
+    lines.append("")
+    lines.append(f"<details><summary>Rollback plan for `{top_result['resource_address']}` (if this needs to be undone)</summary>")
+    lines.append("")
+    for i, step in enumerate(top_result["rollback_plan"]):
+        lines.append(f"{i+1}. {step}")
     lines.append("")
     lines.append("</details>")
 
