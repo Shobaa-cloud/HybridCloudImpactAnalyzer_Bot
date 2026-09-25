@@ -1,7 +1,23 @@
 # CloudGuard — Hybrid Cloud Configuration Change Impact Analyzer
 
-Predicts the blast radius and risk of an infrastructure change **before** it's
-applied, instead of detecting problems after the fact.
+Explains the impact of an infrastructure change **before** it's applied,
+instead of detecting problems after the fact. Every proposed change goes
+through one pipeline:
+
+```
+CHANGE -> DEPENDENCIES -> IMPACT -> RISK -> EXPLANATION -> SAFE ACTION / ROLLBACK
+```
+
+The blast radius (which other resources a change reaches) is one result of
+that pipeline, not the whole product: the output is a risk verdict, a
+plain-English explanation, recommendations, and a rollback plan, delivered as
+a comment on the pull request that proposes the change.
+
+**No credentials required.** Core impact analysis operates on Terraform plan
+data and does not require AWS (or Azure/GCP) credentials. It runs inside the
+user's own CI pipeline, so no third party ever holds access to their cloud
+accounts. (The optional live AWS sync described below is the only feature
+that uses credentials, and only read-only ones.)
 
 ## The problem this solves
 
@@ -29,8 +45,10 @@ GitHub pull request.
   side by side (`analyzer/risk_engine.py`, `analyzer/graph_builder.py`) —
   `samples/multi_cloud_migration.json` proves a single blast-radius trace
   crossing all three providers in one plan (an Azure firewall rule change
-  cascades to an Azure VM, which cascades to a GCP storage bucket). Most
-  drift/policy tools (Checkov, tfsec, AWS Config) are single-cloud.
+  cascades to an Azure VM, which cascades to a GCP storage bucket). Static
+  scanners such as Checkov and tfsec also cover all three clouds, but they
+  check each resource against policy rules in isolation; they don't trace how
+  a change cascades through dependent resources across providers.
 - **Tells you how to undo it, before you apply it.** `analyzer/rollback_generator.py`
   computes the exact rollback steps for every change up front — not
   something you improvise mid-incident.
@@ -41,6 +59,12 @@ GitHub pull request.
   completeness (how much of the plan is knowable before apply), not a vague
   "safety" number inflated by how often we've seen a pattern before — a
   deliberate fix after finding that conflation misleading during review.
+- **Impact score is relative, not a probability.** The 0–100 impact score
+  (`analyzer/impact_engine.py`) is a project-defined comparative measure:
+  each affected resource contributes a weight (base + production tag +
+  internet-facing), divided by (1 + how many hops away it is), and the sum is
+  scaled by 12 and capped at 100. It ranks changes against each other; a
+  score of 72 does **not** mean a 72% chance of failure.
 - **Ships as a CI/CD gate, not a dashboard you have to remember to check.**
   `.github/workflows/blast-radius-check.yml` + `ci/pr_commenter.py` post the
   blast-radius report as a PR comment automatically, and **fail the check**
@@ -184,6 +208,25 @@ project.
 ```bash
 python -m pytest tests/ -q
 ```
+
+`tests/fixtures/real_terraform_module_plan.json` is not hand-written like the
+`samples/` files -- it's the actual, unedited output of a real `terraform
+plan`, run against the real HashiCorp AWS provider, pointed at
+[moto](https://github.com/getmoto/moto)'s local fake-AWS server (`moto[server]`,
+zero cost, zero real AWS account involved). This exists specifically to prove
+the parser handles genuine Terraform-generated JSON, not just JSON shaped to
+fit our own assumptions.
+
+That exercise caught a real bug: the config used to generate this fixture
+puts its security group and EC2 instance inside a Terraform **module**
+(`module "app" { ... }`) rather than the root module. Before fixing
+`plan_parser.py`, running this exact real plan through the analyzer reported
+**0 affected resources** for the security group change, despite the EC2
+instance genuinely using it via `vpc_security_group_ids` — because the
+parser only read `configuration.root_module.resources`, never recursing into
+`module_calls`. `parse_dependency_references` now walks nested modules
+recursively; `test_module_nested_dependency_is_traced` locks in the fix
+against this same real fixture, not a synthetic one.
 
 ## What changed from the original prototype
 

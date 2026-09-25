@@ -44,6 +44,97 @@ RISK_EMOJI = {"LOW": "🟢", "MEDIUM": "🟡", "HIGH": "🟠", "CRITICAL": "🔴
 RISK_ORDER = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
 COMMENT_MARKER = "<!-- cloudguard-blast-radius-bot -->"
 
+# Past ~25 boxes a Mermaid graph in a PR comment becomes unreadable; the
+# nearest dependents are kept and the rest are summarized in one node.
+MAX_GRAPH_NODES = 25
+
+PROVIDERS = {"aws": "AWS", "azurerm": "Azure", "google": "GCP"}
+
+# First matching keyword in the resource type wins.
+TYPE_ICONS = [
+    (("security_group", "firewall", "network_security"), "🛡️"),
+    # Before "instance": aws_db_instance / google_sql_database_instance are databases.
+    (("db", "sql", "database", "rds"), "🗄️"),
+    (("instance", "virtual_machine", "vm"), "🖥️"),
+    (("bucket", "storage", "s3"), "🪣"),
+    (("iam", "role", "policy"), "🔑"),
+    (("vpc", "subnet", "route", "network", "gateway", "nat"), "🌐"),
+    (("log", "cloudwatch", "monitor"), "📜"),
+]
+
+
+def _provider(resource_type: str) -> str:
+    return PROVIDERS.get(resource_type.split("_")[0], "")
+
+
+def _type_icon(resource_type: str) -> str:
+    for keywords, emoji in TYPE_ICONS:
+        if any(k in resource_type for k in keywords):
+            return emoji
+    return "📦"
+
+
+def _mermaid_label(address: str, info: dict, is_changed: bool, action: str) -> str:
+    resource_type = info.get("resource_type") or address.split(".")[0]
+    short_type = resource_type.split("_", 1)[1] if _provider(resource_type) else resource_type
+    name = address.rsplit(".", 1)[-1]
+
+    tags = [_provider(resource_type)] if _provider(resource_type) else []
+    if is_changed:
+        tags.append(action.upper())
+    else:
+        tags.append(f"{info['depth']} hop{'s' if info['depth'] > 1 else ''} away")
+    if info.get("is_production"):
+        tags.append("production")
+    if info.get("is_public"):
+        tags.append("internet-facing")
+
+    # Mermaid labels are HTML-ish: quotes must be entity-escaped.
+    text = f"{_type_icon(resource_type)} {short_type}<br/><b>{name}</b><br/>{' · '.join(tags)}"
+    return text.replace('"', "#quot;")
+
+
+def build_mermaid_graph(result: dict) -> str:
+    graph = result["dependency_graph"]
+    changed = result["resource_address"]
+
+    ordered = sorted(graph["nodes"], key=lambda n: (graph["nodes"][n]["depth"], n))
+    shown = ordered[:MAX_GRAPH_NODES]
+    hidden_count = len(ordered) - len(shown)
+    ids = {address: f"n{i}" for i, address in enumerate(shown)}
+
+    lines = ["```mermaid", "flowchart LR"]
+    for address in shown:
+        info = graph["nodes"][address]
+        label = _mermaid_label(address, info, address == changed, result["action"])
+        if address == changed:
+            css = "changed"
+        elif info.get("is_production") or info.get("is_public"):
+            css = "sensitive"
+        else:
+            css = "affected"
+        lines.append(f'  {ids[address]}["{label}"]:::{css}')
+
+    for upstream, dependent in graph["edges"]:
+        if upstream in ids and dependent in ids:
+            # Calling out cloud boundaries is the point of a hybrid-cloud graph.
+            up_cloud = _provider(graph["nodes"][upstream].get("resource_type", ""))
+            down_cloud = _provider(graph["nodes"][dependent].get("resource_type", ""))
+            arrow = f" -->|{up_cloud} → {down_cloud}| " if up_cloud and down_cloud and up_cloud != down_cloud else " --> "
+            lines.append(f"  {ids[upstream]}{arrow}{ids[dependent]}")
+
+    if hidden_count:
+        lines.append(f'  more["…and {hidden_count} more affected resources"]:::more')
+
+    lines += [
+        "  classDef changed fill:#d6336c,stroke:#8a2146,color:#fff",
+        "  classDef sensitive fill:#fff1e6,stroke:#e8590c,color:#1d1a33",
+        "  classDef affected fill:#eef1ff,stroke:#2f5bff,color:#1d1a33",
+        "  classDef more fill:#f1f3f5,stroke:#868e96,color:#495057,stroke-dasharray:4 3",
+        "```",
+    ]
+    return "\n".join(lines)
+
 
 def build_comment_body(all_results: dict[str, list[dict]], fail_levels: set[str]) -> tuple[str, str]:
     """Returns (comment_body, worst_risk_level)."""
@@ -83,6 +174,27 @@ def build_comment_body(all_results: dict[str, list[dict]], fail_levels: set[str]
     lines.append("")
     lines.append(f"**In plain English:** {top_result['plain_summary']}")
     lines.append("")
+
+    # One graph per change that reaches other resources, riskiest first and
+    # expanded; the rest collapsed so a big PR stays scannable.
+    with_dependents = [(f, r) for f, r in flat if r["affected_count"] > 0]
+    for i, (plan_file, r) in enumerate(with_dependents):
+        emoji = RISK_EMOJI.get(r["risk_level"], "")
+        lines.append(
+            f"<details{' open' if i == 0 else ''}><summary>🕸️ Dependency graph: <code>{r['resource_address']}</code> "
+            f"reaches {r['affected_count']} resource(s) ({emoji} {r['risk_level']})</summary>"
+        )
+        lines.append("")
+        lines.append(build_mermaid_graph(r))
+        lines.append("")
+        lines.append("🟥 changed · 🟧 production or internet-facing · 🟦 affected · arrows show where the change spreads")
+        lines.append("")
+        lines.append("</details>")
+        lines.append("")
+    without = [r["resource_address"] for _, r in flat if r["affected_count"] == 0]
+    if without:
+        lines.append(f"No other resources depend on: {', '.join(f'`{a}`' for a in without)}")
+        lines.append("")
     lines.append(f"<details><summary>Recommendations for the highest-risk change (`{top_result['resource_address']}`)</summary>")
     lines.append("")
     for rec in top_result["recommendations"]:

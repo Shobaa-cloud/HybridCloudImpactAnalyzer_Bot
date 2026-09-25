@@ -34,6 +34,7 @@ def assess_impact(graph: nx.DiGraph, changed_address: str) -> dict:
             "impact_score": 0,
             "impact_level": "LOW",
             "dependency_chain": [changed_address],
+            "dependency_graph": {"nodes": {changed_address: {"depth": 0}}, "edges": []},
         }
 
     depths = nx.single_source_shortest_path_length(graph, changed_address)
@@ -59,10 +60,27 @@ def assess_impact(graph: nx.DiGraph, changed_address: str) -> dict:
     else:
         dependency_chain = [changed_address]
 
+    # The whole blast-radius subgraph (every branch, not just the deepest
+    # path), so the PR comment can draw it.
+    blast_nodes = {changed_address, *affected}
+    dependency_graph = {
+        "nodes": {
+            node: {
+                "depth": depths[node],
+                "resource_type": graph.nodes[node].get("resource_type", "unknown"),
+                "is_production": bool(graph.nodes[node].get("is_production")),
+                "is_public": bool(graph.nodes[node].get("is_public")),
+            }
+            for node in blast_nodes
+        },
+        "edges": sorted([u, v] for u, v in graph.subgraph(blast_nodes).edges),
+    }
+
     return {
         "affected_resources": sorted(affected, key=affected.get),
         "affected_count": len(affected),
         "impact_score": impact_score,
         "impact_level": impact_level,
         "dependency_chain": dependency_chain,
+        "dependency_graph": dependency_graph,
     }

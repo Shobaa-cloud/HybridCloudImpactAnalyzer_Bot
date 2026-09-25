@@ -32,7 +32,7 @@ def print_report(result: dict):
     if not result["affected_resources"]:
         print("  (none)")
     print("-" * 60)
-    print(f"Impact Level:       {result['impact_level']} (score {result['impact_score']}/100)")
+    print(f"Impact Level:       {result['impact_level']} (relative score {result['impact_score']}/100, not a probability)")
     print(f"Risk Level:         {result['risk_level']}")
     print(f"Data Completeness:  {result['confidence_score']}%")
     print("-" * 60)

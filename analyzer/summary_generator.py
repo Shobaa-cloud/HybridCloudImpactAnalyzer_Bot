@@ -32,6 +32,18 @@ def _plain_resource_name(resource_type: str) -> str:
     return resource_type.replace("_", " ")
 
 
+def _resource_type_from_address(address: str) -> str:
+    """
+    A resource address always ends in "<type>.<name>", but may be
+    prefixed by one or more "module.<name>." segments (confirmed
+    against real `terraform show -json` output, e.g.
+    "module.app.aws_instance.web") -- so the type is the *second-to-last*
+    dot-separated segment, not the first.
+    """
+    parts = address.split(".")
+    return parts[-2] if len(parts) >= 2 else address
+
+
 def generate_plain_summary(resource_address: str, resource_type: str, action: str,
                             affected_count: int, affected_resources: list[str], risk_level: str) -> str:
     action_phrase = ACTION_PLAIN.get(action, "changes a")
@@ -47,7 +59,7 @@ def generate_plain_summary(resource_address: str, resource_type: str, action: st
         # clause with nothing in it.
         sentence2 = f"{affected_count} other connected resource(s) may be affected."
     else:
-        examples = ", ".join(_plain_resource_name(r.split(".")[0]) for r in affected_resources[:3])
+        examples = ", ".join(_plain_resource_name(_resource_type_from_address(r)) for r in affected_resources[:3])
         remainder = affected_count - min(3, len(affected_resources))
         more = f" and {remainder} more" if remainder > 0 else ""
         sentence2 = f"{affected_count} other connected resource(s) may be affected, including: {examples}{more}."

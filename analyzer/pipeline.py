@@ -93,6 +93,7 @@ def analyze_plan(plan: dict, plan_source: str, session) -> list[dict]:
             "risk_level": risk["risk_level"],
             "confidence_score": confidence_score,
             "dependency_chain": impact["dependency_chain"],
+            "dependency_graph": impact["dependency_graph"],
             "recommendations": recommendations,
             "rollback_plan": rollback_plan,
             "plain_summary": plain_summary,

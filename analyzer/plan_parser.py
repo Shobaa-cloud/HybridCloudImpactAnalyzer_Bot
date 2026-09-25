@@ -77,6 +77,66 @@ def parse_resource_changes(plan: dict) -> list[ResourceChange]:
     return results
 
 
+def _normalize_reference(ref: str, module_path: str) -> str:
+    """
+    Turn a raw Terraform reference string into a fully-qualified address
+    matching how `resource_changes` addresses things (e.g. Terraform
+    itself addresses a resource inside a module call as
+    "module.app.aws_instance.web", confirmed against real `terraform
+    show -json` output, not assumed).
+
+    A reference like "aws_security_group.web_sg.id" found *inside*
+    module "app" means a sibling resource in that same module, so it
+    needs "module.app." prefixed on. A reference already anchored at
+    "module." points at a different module and is left as-is (best
+    effort -- an output reference like "module.network.vpc_id" doesn't
+    always resolve to one specific resource address).
+    """
+    if ref.startswith("module."):
+        parts = ref.split(".")
+        return ".".join(parts[:2])
+    resource_ref = ".".join(ref.split(".")[:2])
+    return module_path + resource_ref
+
+
+def _walk_module(module_node: dict, module_path: str, references: dict[str, set[str]]) -> None:
+    """
+    Recursively walks `configuration.root_module` and every nested
+    `module_calls[...].module`, so dependency references are captured
+    for resources declared inside Terraform modules -- not just ones
+    declared directly at the root. This matters because most real-world
+    Terraform code is organized into modules; without this, the graph
+    would silently miss most of a real project's dependencies.
+    """
+
+    for resource in module_node.get("resources", []):
+        local_address = resource.get("address")
+        if not local_address:
+            continue
+
+        full_address = module_path + local_address
+        refs = set()
+
+        for expr in resource.get("expressions", {}).values():
+            if isinstance(expr, dict) and "references" in expr:
+                for ref in expr["references"]:
+                    normalized = _normalize_reference(ref, module_path)
+                    if normalized != full_address:
+                        refs.add(normalized)
+
+        for dep in resource.get("depends_on", []):
+            normalized = _normalize_reference(dep, module_path)
+            if normalized != full_address:
+                refs.add(normalized)
+
+        references[full_address] = refs
+
+    for call_name, call in module_node.get("module_calls", {}).items():
+        nested_module = call.get("module", {})
+        nested_path = f"{module_path}module.{call_name}."
+        _walk_module(nested_module, nested_path, references)
+
+
 def parse_dependency_references(plan: dict) -> dict[str, set[str]]:
     """
     Build {resource_address: {addresses it references}} from Terraform's
@@ -87,27 +147,6 @@ def parse_dependency_references(plan: dict) -> dict[str, set[str]]:
     """
 
     references: dict[str, set[str]] = {}
-
     root_module = plan.get("configuration", {}).get("root_module", {})
-
-    for resource in root_module.get("resources", []):
-        address = resource.get("address")
-        refs = set()
-
-        for expr in resource.get("expressions", {}).values():
-            if isinstance(expr, dict) and "references" in expr:
-                for ref in expr["references"]:
-                    # Terraform includes attribute-level refs like
-                    # "aws_security_group.web.id" -- normalize to the
-                    # resource address.
-                    resource_ref = ".".join(ref.split(".")[:2])
-                    if resource_ref != address:
-                        refs.add(resource_ref)
-
-        explicit_depends_on = resource.get("depends_on", [])
-        refs.update(explicit_depends_on)
-
-        if address:
-            references[address] = refs
-
+    _walk_module(root_module, "", references)
     return references
