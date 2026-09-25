@@ -1,500 +1,227 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>CloudGuard - Impact Analyzer</title>
-
-    <link rel="stylesheet"
-          href="{{ url_for('static', filename='style.css') }}">
+    <title>CloudGuard — Impact Analyzer</title>
+    <link rel="icon" href="{{ url_for('static', filename='icon.png') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@500&display=swap">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-
 <body>
 
-<div class="app">
+<!-- Line-icon sprite: every icon is a <use href="#i-..."> of these -->
+<svg class="sprite" aria-hidden="true">
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7z"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18a4.5 4.5 0 0 1-.6-9 6 6 0 0 1 11.4 1.5A3.8 3.8 0 0 1 17.5 18z"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 5 3.4 8.5 8 9.5 4.6-1 8-4.5 8-9.5V6z"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 3v5h5"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 21v-5h-5"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></symbol>
+    <symbol id="i-server" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="1.5"/><rect x="3" y="13" width="18" height="7" rx="1.5"/><path d="M7 7.5h.01M7 16.5h.01"/></symbol>
+    <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5.5" rx="8" ry="2.5"/><path d="M4 5.5v13c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5v-13"/><path d="M4 12c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5"/></symbol>
+    <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
+    <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="5" r="2.5"/><path d="M8.5 19H16a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h7.5"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.3-9.3"/><path d="m16 7 3 3"/><path d="m18.5 4.5 2 2"/></symbol>
+    <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></symbol>
+</svg>
 
-    <!-- SIDEBAR -->
-    <aside class="sidebar">
+<!-- ============ TOP NAV ============ -->
+<header class="nav">
+    <a class="logo" href="#">
+        <img src="{{ url_for('static', filename='icon.png') }}" alt="" width="26" height="26">
+        <span>CloudGuard</span><span class="logo-sub">Impact Analyzer</span>
+    </a>
+    <nav class="tabs" aria-label="Sections">
+        <a href="#" data-route="">Report</a>
+        <a href="#run" data-route="run">Run analysis</a>
+        <a href="#snapshot" data-route="snapshot">AWS snapshot</a>
+        <a href="#history" data-route="history">History</a>
+    </nav>
+    <div class="nav-actions">
+        <button class="btn btn-ghost" id="share-btn" type="button">Share <svg class="ic"><use href="#i-share"/></svg></button>
+        <button class="btn btn-ink" id="download-btn" type="button"><svg class="ic"><use href="#i-download"/></svg>Download report</button>
+    </div>
+</header>
 
-        <div class="brand">
-            <div class="cloud-icon">☁</div>
+<!-- ============ VIEW: REPORT ============ -->
+<main id="view-dashboard" class="view is-active">
 
-            <div>
-                <h2>CloudGuard</h2>
-                <span>Impact Analyzer</span>
-            </div>
+    <section class="masthead">
+        <svg class="masthead-rings" viewBox="-200 -200 400 400" aria-hidden="true">
+            <defs><linearGradient id="mh-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2f5bff"/><stop offset="1" stop-color="#7a3cff"/></linearGradient></defs>
+            <circle r="44"/><circle r="92"/><circle class="dashed" r="140"/><circle class="dashed" r="188"/>
+        </svg>
+        <p class="eyebrow"><span class="status-dot"></span><span id="status-title">No analysis yet</span></p>
+        <h1 class="display">Impact <em>report</em></h1>
+        <p class="masthead-sub" id="status-subtitle">Run an analysis to see the blast radius of a change.</p>
+    </section>
+
+    <section class="actions">
+        <div class="card" id="sec-run">
+            <p class="kicker">Run a new analysis</p>
+            <h2 class="card-title">Terraform plan in, <em>blast radius</em> out.</h2>
+            <form id="analyze-form" class="analyze-form">
+                <label class="field">
+                    <span>Sample plan</span>
+                    <select id="sample-select">
+                        {% for sample in sample_files %}
+                        <option value="{{ sample }}">{{ sample }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="dropzone">
+                    <input type="file" id="plan-file" accept="application/json,.json">
+                    <svg class="ic"><use href="#i-upload"/></svg>
+                    <span id="plan-file-name">Or upload <code>terraform show -json</code> output</span>
+                </label>
+                <button class="btn btn-ink btn-lg" type="submit"><svg class="ic"><use href="#i-play"/></svg>Analyze</button>
+            </form>
+            <p class="status-line" id="analyze-status" aria-live="polite"></p>
         </div>
 
-        <nav>
+        <div class="card" id="sec-snapshot">
+            <p class="kicker">Live AWS snapshot</p>
+            <h2 class="card-title">Compare with what's <em>running.</em></h2>
+            <p class="snapshot-status" id="snapshot-status" aria-live="polite">Not synced yet.</p>
+            <button class="btn btn-ghost" id="sync-btn" type="button"><svg class="ic"><use href="#i-refresh"/></svg>Sync now (read-only)</button>
+            <p class="fine-print">Makes 3 read-only AWS calls (DescribeSecurityGroups, DescribeInstances, DescribeDBInstances). Creates nothing and runs only when you click. Needs AWS credentials configured; see README.</p>
+        </div>
+    </section>
 
-            <a class="nav-item active">
-                ◉ <span>Dashboard</span>
-            </a>
+    <section class="metrics" aria-label="Key metrics">
+        <div class="stat" id="risk-stat">
+            <span class="stat-label">Risk level</span>
+            <strong id="metric-risk">--</strong>
+            <span class="stat-sub">Blast radius × change sensitivity</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Data completeness</span>
+            <strong id="metric-confidence">--</strong>
+            <span class="stat-sub">Known before apply, not a safety score</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Affected resources</span>
+            <strong id="metric-affected">--</strong>
+            <span class="stat-sub" id="metric-affected-sub">From the dependency graph</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Similar past changes</span>
+            <strong id="metric-similar">--</strong>
+            <span class="stat-sub">Found in your history</span>
+        </div>
+    </section>
 
-            <a class="nav-item">
-                ◈ <span>Impact Analysis</span>
-            </a>
+    <section class="summary">
+        <p class="kicker">In plain English</p>
+        <p class="summary-text" id="plain-summary">Run an analysis to see a plain-English explanation here.</p>
+    </section>
 
-            <a class="nav-item">
-                ▣ <span>Resources</span>
-            </a>
+    <section class="section">
+        <div class="section-head">
+            <p class="kicker">Dependency chain</p>
+            <p class="section-note">The deepest cascade from the changed resource, built from Terraform's own reference graph via NetworkX.</p>
+        </div>
+        <div class="chain" id="dependency-chain">
+            <p class="empty">Run an analysis to see the dependency chain.</p>
+        </div>
+    </section>
 
-            <a class="nav-item">
-                ◷ <span>Change History</span>
-            </a>
-
-            <a class="nav-item">
-                ⚠ <span>Incidents</span>
-            </a>
-
-            <a class="nav-item">
-                ✓ <span>Recommendations</span>
-            </a>
-
-            <a class="nav-item">
-                ⚙ <span>Settings</span>
-            </a>
-
-        </nav>
-
-        <div class="environment">
-
-            <small>Environment</small>
-
-            <div class="environment-box">
-                <span>☁</span>
-                AWS Production
-                <span>⌄</span>
-            </div>
-
+    <section class="section columns-3">
+        <div class="column">
+            <p class="kicker">Change details</p>
+            <dl class="details">
+                <div><dt>Change action</dt><dd id="detail-action">--</dd></div>
+                <div><dt>Resource</dt><dd id="detail-resource">--</dd></div>
+                <div><dt>Resource type</dt><dd id="detail-type">--</dd></div>
+                <div><dt>Changed fields</dt><dd id="detail-fields">--</dd></div>
+                <div><dt>Plan source</dt><dd id="detail-source">--</dd></div>
+            </dl>
         </div>
 
-        <div class="user">
-
-            <div class="avatar">A</div>
-
-            <div>
-                <strong>Admin User</strong>
-                <small>admin@example.com</small>
-            </div>
-
-            <span>⌄</span>
-
-        </div>
-
-    </aside>
-
-
-    <!-- MAIN CONTENT -->
-    <main class="main">
-
-        <!-- HEADER -->
-        <header class="header">
-
-            <div>
-                <h1>🛡 Configuration Change Impact Report</h1>
-            </div>
-
-        </header>
-
-
-        <!-- STATUS BAR -->
-        <section class="status-bar">
-
-            <div class="success-icon">✓</div>
-
-            <div>
-                <strong>Analysis completed successfully</strong>
-
-                <p>
-                    Generated on: 12 May 2025, 10:30 AM
-                </p>
-            </div>
-
-            <div class="header-buttons">
-
-                <button>
-                    ↓ Download Report
-                </button>
-
-                <button class="share">
-                    ↗ Share Report
-                </button>
-
-            </div>
-
-        </section>
-
-
-        <!-- METRIC CARDS -->
-        <section class="metrics">
-
-            <div class="metric-card risk-card">
-
-                <div>
-                    <label>RISK LEVEL</label>
-
-                    <h2>HIGH</h2>
-
-                    <p>
-                        This change could cause major
-                        impact to your system.
-                    </p>
+        <div class="column">
+            <p class="kicker">Impact summary</p>
+            <div class="impact">
+                <div class="ring">
+                    <svg viewBox="0 0 120 120" aria-hidden="true">
+                        <defs><linearGradient id="ring-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2f5bff"/><stop offset="1" stop-color="#7a3cff"/></linearGradient></defs>
+                        <circle class="ring-track" cx="60" cy="60" r="50"/>
+                        <circle class="ring-value" id="impact-ring" cx="60" cy="60" r="50"/>
+                    </svg>
+                    <div class="ring-label"><strong id="impact-score">--</strong><span>Impact score</span></div>
                 </div>
-
-                <div class="metric-icon">⚠</div>
-
-            </div>
-
-
-            <div class="metric-card">
-
-                <div>
-                    <label>CONFIDENCE SCORE</label>
-
-                    <h2 class="green">91%</h2>
-
-                    <p>
-                        High confidence based on
-                        hybrid analysis.
-                    </p>
-                </div>
-
-                <div class="graph">⌁⌁⌁</div>
-
-            </div>
-
-
-            <div class="metric-card">
-
-                <div>
-                    <label>AFFECTED RESOURCES</label>
-
-                    <h2 class="blue" id="affected">7</h2>
-
-                    <p>
-                        Across 4 AWS services.
-                    </p>
-                </div>
-
-                <div class="metric-icon blue">▰</div>
-
-            </div>
-
-
-            <div class="metric-card">
-
-                <div>
-                    <label>SIMILAR PAST CHANGES</label>
-
-                    <h2 class="purple">4</h2>
-
-                    <p>
-                        Found in historical database.
-                    </p>
-                </div>
-
-                <div class="metric-icon purple">◴</div>
-
-            </div>
-
-        </section>
-
-
-        <!-- DETAILS + DEPENDENCY -->
-        <section class="two-column">
-
-            <!-- CHANGE DETAILS -->
-            <div class="panel">
-
-                <div class="panel-title">
-                    <span>✎</span>
-                    <h3>Change Details</h3>
-                </div>
-
-                <table>
-
-                    <tr>
-                        <td>Change Type</td>
-                        <td>Modify Security Group Rule</td>
-                    </tr>
-
-                    <tr>
-                        <td>Resource</td>
-                        <td>sg-0abc123def456ghi7</td>
-                    </tr>
-
-                    <tr>
-                        <td>Resource Name</td>
-                        <td>Web-Security-Group</td>
-                    </tr>
-
-                    <tr>
-                        <td>Change Description</td>
-                        <td>
-                            Remove inbound rule:
-                            TCP 22 (SSH) from 0.0.0.0/0
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <td>Requested By</td>
-                        <td>admin@example.com</td>
-                    </tr>
-
-                    <tr>
-                        <td>Requested At</td>
-                        <td>12 May 2025, 10:15 AM</td>
-                    </tr>
-
-                </table>
-
-            </div>
-
-
-            <!-- DEPENDENCY PATH -->
-            <div class="panel">
-
-                <div class="panel-title">
-                    <span>♧</span>
-                    <h3>Affected Resources & Dependency Path</h3>
-                </div>
-
-                <div class="dependency">
-
-                    <div class="resource security">
-                        <div class="resource-icon">♢</div>
-                        <strong>Security Group</strong>
-                        <span>Web-Security-Group</span>
-                    </div>
-
-                    <div class="arrow">→</div>
-
-                    <div class="resource ec2">
-                        <div class="resource-icon">▣</div>
-                        <strong>EC2 Instance</strong>
-                        <span>Web-Server</span>
-                    </div>
-
-                    <div class="arrow">→</div>
-
-                    <div class="resource rds">
-                        <div class="resource-icon">▤</div>
-                        <strong>RDS Database</strong>
-                        <span>App-Database</span>
-                    </div>
-
-                    <div class="arrow">→</div>
-
-                    <div class="resource app">
-                        <div class="resource-icon">▥</div>
-                        <strong>Application</strong>
-                        <span>Login API</span>
-                    </div>
-
-                    <div class="arrow">→</div>
-
-                    <div class="resource end">
-                        <div class="resource-icon">◎</div>
-                        <strong>End Service</strong>
-                        <span>Web Frontend</span>
-                    </div>
-
-                </div>
-
-                <div class="dependency-note">
-
-                    Impact propagates from the changed resource
-                    to dependent resources through direct
-                    and indirect dependencies.
-
-                </div>
-
-            </div>
-
-        </section>
-
-
-        <!-- IMPACT + HISTORY -->
-        <section class="two-column">
-
-            <!-- IMPACT SUMMARY -->
-            <div class="panel">
-
-                <div class="panel-title">
-                    <span>!</span>
-                    <h3>Impact Summary</h3>
-                </div>
-
-                <div class="impact-layout">
-
-                    <div class="impact-list">
-
-                        <div>
-                            <span>Availability Impact</span>
-                            <b class="high">HIGH</b>
-                        </div>
-
-                        <div>
-                            <span>Performance Impact</span>
-                            <b class="medium">MEDIUM</b>
-                        </div>
-
-                        <div>
-                            <span>Security Impact</span>
-                            <b class="high">HIGH</b>
-                        </div>
-
-                        <div>
-                            <span>Data Impact</span>
-                            <b class="low">LOW</b>
-                        </div>
-
-                        <div>
-                            <span>Overall Risk</span>
-                            <b class="high">HIGH</b>
-                        </div>
-
-                    </div>
-
-                    <div class="score-circle">
-
-                        <strong>91%</strong>
-
-                        <span>Overall Risk Score</span>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-
-            <!-- PAST CHANGES -->
-            <div class="panel">
-
-                <div class="panel-title">
-                    <span>◷</span>
-                    <h3>Similar Past Changes</h3>
-                </div>
-
-                <table class="history">
-
-                    <thead>
-                        <tr>
-                            <th>Change ID</th>
-                            <th>Description</th>
-                            <th>Outcome</th>
-                            <th>Impact</th>
-                            <th>Date</th>
-                        </tr>
-                    </thead>
-
-                    <tbody>
-
-                        <tr>
-                            <td>CHG-2025-0412</td>
-                            <td>Removed SSH from SG</td>
-                            <td>EC2 SSH access failed</td>
-                            <td><b class="high">HIGH</b></td>
-                            <td>12 Apr 2025</td>
-                        </tr>
-
-                        <tr>
-                            <td>CHG-2025-0328</td>
-                            <td>Removed SSH from SG</td>
-                            <td>Deployment pipeline failed</td>
-                            <td><b class="high">HIGH</b></td>
-                            <td>28 Mar 2025</td>
-                        </tr>
-
-                        <tr>
-                            <td>CHG-2025-0215</td>
-                            <td>Removed SSH from SG</td>
-                            <td>EC2 unreachable</td>
-                            <td><b class="high">HIGH</b></td>
-                            <td>15 Feb 2025</td>
-                        </tr>
-
-                        <tr>
-                            <td>CHG-2025-0110</td>
-                            <td>Restricted SSH source IP</td>
-                            <td>No service disruption</td>
-                            <td><b class="low">LOW</b></td>
-                            <td>10 Jan 2025</td>
-                        </tr>
-
-                    </tbody>
-
-                </table>
-
-            </div>
-
-        </section>
-
-
-        <!-- RECOMMENDATIONS -->
-        <section class="recommendation-panel">
-
-            <div class="recommendations">
-
-                <div class="panel-title">
-                    <span>✓</span>
-                    <h3>Recommendations</h3>
-                </div>
-
-                <ul>
-
-                    <li>
-                        Review the change carefully.
-                        This may disrupt SSH access to EC2 instances.
-                    </li>
-
-                    <li>
-                        Consider using a bastion host or VPN
-                        instead of opening SSH to 0.0.0.0/0.
-                    </li>
-
-                    <li>
-                        Test the change in a staging environment
-                        before applying to production.
-                    </li>
-
-                    <li>
-                        Ensure application and database connectivity
-                        after the change.
-                    </li>
-
+                <ul class="impact-list" id="impact-list">
+                    <li><span>Impact level</span><b id="impact-level-badge" class="pill">--</b></li>
+                    <li><span>Risk level</span><b id="impact-risk-badge" class="pill">--</b></li>
+                    <li><span>Security-sensitive field</span><b id="impact-sensitive-badge" class="pill">--</b></li>
                 </ul>
-
             </div>
+        </div>
 
+        <div class="column">
+            <p class="kicker">Recommendations</p>
+            <ol class="recs" id="recommendations-list">
+                <li>Run an analysis to see recommendations.</li>
+            </ol>
+        </div>
+    </section>
 
-            <div class="warning">
-
-                <div class="warning-icon">⚠</div>
-
-                <div>
-
-                    <span>Recommendation</span>
-
-                    <h2>REVIEW BEFORE DEPLOYMENT</h2>
-
-                    <p>
-                        This change requires careful consideration.
-                    </p>
-
-                </div>
-
+    <section class="section columns-2">
+        <div class="column">
+            <p class="kicker">Similar past changes</p>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead><tr><th>Resource</th><th>Action</th><th>Risk</th><th>Outcome</th></tr></thead>
+                    <tbody id="history-body"><tr><td colspan="4" class="empty">No similar past changes yet.</td></tr></tbody>
+                </table>
             </div>
+        </div>
 
-        </section>
+        <div class="column">
+            <p class="kicker">Rollback plan <span class="kicker-note">computed before you apply</span></p>
+            <ol class="timeline" id="rollback-list">
+                <li>Run an analysis to see the rollback steps.</li>
+            </ol>
+        </div>
+    </section>
 
-    </main>
+    <section class="verdict" id="verdict">
+        <p class="kicker">Verdict</p>
+        <p class="verdict-text" id="warning-headline">Run an analysis</p>
+        <p class="verdict-sub" id="warning-sub">Pick a plan above to get a deployment verdict.</p>
+    </section>
+</main>
 
-</div>
+<!-- ============ VIEW: HISTORY ============ -->
+<main id="view-history" class="view">
+    <section class="masthead masthead-sm">
+        <p class="eyebrow">Your last 50 analyses</p>
+        <h1 class="display">Change <em>history</em></h1>
+        <p class="masthead-sub">Click any row to open it as the report.</p>
+    </section>
+    <section class="section">
+        <div class="table-wrap">
+            <table class="table table-click">
+                <thead><tr><th>When</th><th>Resource</th><th>Action</th><th>Impact</th><th>Risk</th><th>Affected</th></tr></thead>
+                <tbody id="all-history-body"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+            </table>
+        </div>
+    </section>
+</main>
 
+<footer class="footer">
+    <p class="footer-mark" aria-hidden="true">Cloud<em>Guard</em></p>
+    <div class="footer-row">
+        <span>Hybrid cloud configuration change impact analysis</span>
+        <span>Read-only by design: plans are analysed offline, AWS is only read when you click Sync.</span>
+    </div>
+</footer>
+
+<script id="initial-analysis" type="application/json">{{ latest | tojson }}</script>
+<script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>

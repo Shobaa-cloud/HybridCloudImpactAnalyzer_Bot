@@ -1,0 +1,87 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.7.5",
+  "resource_changes": [
+    {
+      "address": "aws_db_instance.app_db",
+      "mode": "managed",
+      "type": "aws_db_instance",
+      "name": "app_db",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["delete", "create"],
+        "before": {
+          "id": "db-0zz99yy88xx77",
+          "publicly_accessible": false,
+          "instance_class": "db.t3.medium",
+          "tags": {"Name": "App-Database", "Environment": "production"}
+        },
+        "after": {
+          "id": null,
+          "publicly_accessible": true,
+          "instance_class": "db.t3.large",
+          "tags": {"Name": "App-Database", "Environment": "production"}
+        },
+        "after_unknown": {"id": true}
+      }
+    },
+    {
+      "address": "aws_instance.app_server",
+      "mode": "managed",
+      "type": "aws_instance",
+      "name": "app_server",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["no-op"],
+        "before": {"id": "i-0aa11bb22cc33dd44", "tags": {"Name": "App-Server", "Environment": "production"}},
+        "after": {"id": "i-0aa11bb22cc33dd44", "tags": {"Name": "App-Server", "Environment": "production"}},
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_lambda_function.report_generator",
+      "mode": "managed",
+      "type": "aws_lambda_function",
+      "name": "report_generator",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["no-op"],
+        "before": {"id": "report-generator", "tags": {"Environment": "production"}},
+        "after": {"id": "report-generator", "tags": {"Environment": "production"}},
+        "after_unknown": {}
+      }
+    }
+  ],
+  "configuration": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "aws_db_instance.app_db",
+          "type": "aws_db_instance",
+          "name": "app_db",
+          "expressions": {}
+        },
+        {
+          "address": "aws_instance.app_server",
+          "type": "aws_instance",
+          "name": "app_server",
+          "expressions": {
+            "user_data": {
+              "references": ["aws_db_instance.app_db.endpoint"]
+            }
+          }
+        },
+        {
+          "address": "aws_lambda_function.report_generator",
+          "type": "aws_lambda_function",
+          "name": "report_generator",
+          "expressions": {
+            "environment": {
+              "references": ["aws_db_instance.app_db.endpoint"]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,12 @@
+Flask==3.1.2
+networkx==3.4.2
+SQLAlchemy==2.0.36
+mysql-connector-python==9.1.0
+boto3==1.35.99
+python-dotenv==1.0.1
+pytest==8.3.4
+
+# Not needed to run the app -- only used to validate the analyzer against
+# genuine `terraform plan` output (moto's server mode fakes AWS locally so
+# a real Terraform run needs no real cloud account). See README.
+moto[server]==5.2.3
