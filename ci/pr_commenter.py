@@ -29,9 +29,9 @@ import urllib.error
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-# Windows terminals default to a codepage that can't encode the emoji
-# used in the report; GitHub Actions runners are UTF-8 already, so this
-# only matters for local testing on Windows.
+# Windows terminals default to a codepage that can't encode characters
+# such as the arrows used in the report; GitHub Actions runners are UTF-8
+# already, so this only matters for local testing on Windows.
 try:
     sys.stdout.reconfigure(encoding="utf-8")
 except AttributeError:
@@ -40,7 +40,6 @@ except AttributeError:
 from db import init_db, SessionLocal
 from analyzer.pipeline import analyze_plan
 
-RISK_EMOJI = {"LOW": "🟢", "MEDIUM": "🟡", "HIGH": "🟠", "CRITICAL": "🔴"}
 RISK_ORDER = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
 COMMENT_MARKER = "<!-- cloudguard-blast-radius-bot -->"
 
@@ -50,28 +49,9 @@ MAX_GRAPH_NODES = 25
 
 PROVIDERS = {"aws": "AWS", "azurerm": "Azure", "google": "GCP"}
 
-# First matching keyword in the resource type wins.
-TYPE_ICONS = [
-    (("security_group", "firewall", "network_security"), "🛡️"),
-    # Before "instance": aws_db_instance / google_sql_database_instance are databases.
-    (("db", "sql", "database", "rds"), "🗄️"),
-    (("instance", "virtual_machine", "vm"), "🖥️"),
-    (("bucket", "storage", "s3"), "🪣"),
-    (("iam", "role", "policy"), "🔑"),
-    (("vpc", "subnet", "route", "network", "gateway", "nat"), "🌐"),
-    (("log", "cloudwatch", "monitor"), "📜"),
-]
-
 
 def _provider(resource_type: str) -> str:
     return PROVIDERS.get(resource_type.split("_")[0], "")
-
-
-def _type_icon(resource_type: str) -> str:
-    for keywords, emoji in TYPE_ICONS:
-        if any(k in resource_type for k in keywords):
-            return emoji
-    return "📦"
 
 
 def _mermaid_label(address: str, info: dict, is_changed: bool, action: str) -> str:
@@ -90,7 +70,7 @@ def _mermaid_label(address: str, info: dict, is_changed: bool, action: str) -> s
         tags.append("internet-facing")
 
     # Mermaid labels are HTML-ish: quotes must be entity-escaped.
-    text = f"{_type_icon(resource_type)} {short_type}<br/><b>{name}</b><br/>{' · '.join(tags)}"
+    text = f"<b>{name}</b><br/>{short_type}<br/><small>{' · '.join(tags)}</small>"
     return text.replace('"', "#quot;")
 
 
@@ -124,16 +104,68 @@ def build_mermaid_graph(result: dict) -> str:
             lines.append(f"  {ids[upstream]}{arrow}{ids[dependent]}")
 
     if hidden_count:
-        lines.append(f'  more["…and {hidden_count} more affected resources"]:::more')
+        lines.append(f'  more["and {hidden_count} more affected resources"]:::more')
 
     lines += [
-        "  classDef changed fill:#d6336c,stroke:#8a2146,color:#fff",
-        "  classDef sensitive fill:#fff1e6,stroke:#e8590c,color:#1d1a33",
-        "  classDef affected fill:#eef1ff,stroke:#2f5bff,color:#1d1a33",
-        "  classDef more fill:#f1f3f5,stroke:#868e96,color:#495057,stroke-dasharray:4 3",
+        "  classDef changed fill:#b42318,stroke:#7a271a,color:#ffffff",
+        "  classDef sensitive fill:#fff4ed,stroke:#c4320a,color:#1d2939",
+        "  classDef affected fill:#f2f4f7,stroke:#475467,color:#1d2939",
+        "  classDef more fill:#ffffff,stroke:#98a2b3,color:#475467,stroke-dasharray:4 3",
         "```",
     ]
     return "\n".join(lines)
+
+
+def _status_callout(worst: str, gate_failed: bool, fail_levels: set[str]) -> list[str]:
+    """A GitHub alert block: a coloured box with GitHub's own icon, no emoji needed."""
+    gate = ", ".join(sorted(fail_levels, key=RISK_ORDER.index)) or "none"
+    if gate_failed:
+        return [
+            "> [!CAUTION]",
+            f"> **Merge blocked.** The highest risk in this pull request is **{worst}**, "
+            f"which meets the merge gate ({gate}). Review the change details below, or have an "
+            "approver override branch protection if this is intentional.",
+        ]
+    kind = "TIP" if worst == "LOW" else "WARNING" if worst == "HIGH" else "NOTE"
+    return [
+        f"> [!{kind}]",
+        f"> **Passed.** The highest risk in this pull request is **{worst}** (merge gate: {gate}).",
+    ]
+
+
+def _change_details(plan_file: str, r: dict, expanded: bool) -> list[str]:
+    reach = r["affected_count"]
+    reach_text = f"reaches {reach} resource{'s' if reach != 1 else ''}" if reach else "no dependents"
+    lines = [
+        f"<details{' open' if expanded else ''}>",
+        f"<summary><b>{r['risk_level']}</b> &nbsp;·&nbsp; <code>{r['resource_address']}</code>"
+        f" &nbsp;·&nbsp; {r['action']} &nbsp;·&nbsp; {reach_text}</summary>",
+        "",
+        f"**Summary.** {r['plain_summary']}",
+        "",
+        f"Plan file `{plan_file}` · Impact {r['impact_level'].capitalize()} "
+        f"(score {r['impact_score']}/100) · Data completeness {r['confidence_score']}%",
+        "",
+    ]
+    if reach:
+        lines += [
+            "**Dependency graph**",
+            "",
+            build_mermaid_graph(r),
+            "",
+            "<sub>Red: changed resource. Orange: production or internet-facing. "
+            "Grey: other affected resources. Arrows point in the direction the change spreads.</sub>",
+            "",
+        ]
+    else:
+        lines += ["No other resources depend on this resource, so the change stays contained.", ""]
+
+    lines += ["**Recommendations**", ""]
+    lines += [f"- {rec}" for rec in r["recommendations"]]
+    lines += ["", "**Rollback plan**", ""]
+    lines += [f"{i}. {step}" for i, step in enumerate(r["rollback_plan"], start=1)]
+    lines += ["", "</details>", ""]
+    return lines
 
 
 def build_comment_body(all_results: dict[str, list[dict]], fail_levels: set[str]) -> tuple[str, str]:
@@ -142,81 +174,59 @@ def build_comment_body(all_results: dict[str, list[dict]], fail_levels: set[str]
     flat = [(plan_file, r) for plan_file, results in all_results.items() for r in results]
 
     if not flat:
-        body = f"{COMMENT_MARKER}\n### 🛡 CloudGuard Blast Radius Check\n\n✅ No effective infrastructure changes detected."
+        body = "\n".join([
+            COMMENT_MARKER,
+            "## CloudGuard Blast Radius Check",
+            "",
+            "> [!TIP]",
+            "> **Passed.** No effective infrastructure changes were found in this pull request.",
+        ])
         return body, "LOW"
 
     worst = max((r["risk_level"] for _, r in flat), key=RISK_ORDER.index)
     gate_failed = worst in fail_levels
+    flat.sort(key=lambda item: RISK_ORDER.index(item[1]["risk_level"]), reverse=True)
 
-    header_icon = "❌" if gate_failed else "✅"
-    header_text = f"Blocked: risk reached {worst}" if gate_failed else f"Passed (highest risk: {worst})"
+    counts = [
+        f"{sum(1 for _, r in flat if r['risk_level'] == level)} {level.lower()}"
+        for level in reversed(RISK_ORDER)
+        if any(r["risk_level"] == level for _, r in flat)
+    ]
+    files = len(all_results)
 
     lines = [
         COMMENT_MARKER,
-        f"### 🛡 CloudGuard Blast Radius Check -- {header_icon} {header_text}",
+        "## CloudGuard Blast Radius Check",
         "",
-        f"Analyzed {len(all_results)} plan file(s), {len(flat)} effective change(s).",
+        *_status_callout(worst, gate_failed, fail_levels),
         "",
-        "| File | Resource | Action | Impact | Risk | Affected | Data Completeness |",
-        "|---|---|---|---|---|---|---|",
+        f"**{len(flat)} change{'s' if len(flat) != 1 else ''}** in {files} plan file{'s' if files != 1 else ''}: "
+        + ", ".join(counts) + ".",
+        "",
+        "| Risk | Resource | Action | Impact | Reaches |",
+        "|:--|:--|:--|:--|--:|",
     ]
-
-    flat.sort(key=lambda item: RISK_ORDER.index(item[1]["risk_level"]), reverse=True)
-
-    for plan_file, r in flat:
-        emoji = RISK_EMOJI.get(r["risk_level"], "")
+    for _, r in flat:
         lines.append(
-            f"| `{plan_file}` | `{r['resource_address']}` | {r['action']} | {r['impact_level']} "
-            f"| {emoji} {r['risk_level']} | {r['affected_count']} | {r['confidence_score']}% |"
+            f"| **{r['risk_level']}** | `{r['resource_address']}` | {r['action']} "
+            f"| {r['impact_level'].capitalize()} | {r['affected_count']} |"
         )
 
-    top_plan_file, top_result = flat[0]
-    lines.append("")
-    lines.append(f"**In plain English:** {top_result['plain_summary']}")
-    lines.append("")
+    lines += [
+        "",
+        "### Change details",
+        "",
+        "<sub>Highest risk first. Expand a change for its graph, recommendations and rollback plan.</sub>",
+        "",
+    ]
+    for i, (plan_file, r) in enumerate(flat):
+        lines += _change_details(plan_file, r, expanded=(i == 0))
 
-    # One graph per change that reaches other resources, riskiest first and
-    # expanded; the rest collapsed so a big PR stays scannable.
-    with_dependents = [(f, r) for f, r in flat if r["affected_count"] > 0]
-    for i, (plan_file, r) in enumerate(with_dependents):
-        emoji = RISK_EMOJI.get(r["risk_level"], "")
-        lines.append(
-            f"<details{' open' if i == 0 else ''}><summary>🕸️ Dependency graph: <code>{r['resource_address']}</code> "
-            f"reaches {r['affected_count']} resource(s) ({emoji} {r['risk_level']})</summary>"
-        )
-        lines.append("")
-        lines.append(build_mermaid_graph(r))
-        lines.append("")
-        lines.append("🟥 changed · 🟧 production or internet-facing · 🟦 affected · arrows show where the change spreads")
-        lines.append("")
-        lines.append("</details>")
-        lines.append("")
-    without = [r["resource_address"] for _, r in flat if r["affected_count"] == 0]
-    if without:
-        lines.append(f"No other resources depend on: {', '.join(f'`{a}`' for a in without)}")
-        lines.append("")
-    lines.append(f"<details><summary>Recommendations for the highest-risk change (`{top_result['resource_address']}`)</summary>")
-    lines.append("")
-    for rec in top_result["recommendations"]:
-        lines.append(f"- {rec}")
-    lines.append("")
-    lines.append("</details>")
-    lines.append("")
-    lines.append(f"<details><summary>Rollback plan for `{top_result['resource_address']}` (if this needs to be undone)</summary>")
-    lines.append("")
-    for i, step in enumerate(top_result["rollback_plan"]):
-        lines.append(f"{i+1}. {step}")
-    lines.append("")
-    lines.append("</details>")
-
-    if gate_failed:
-        lines.append("")
-        lines.append(
-            f"🚫 **This check fails because a change reached {worst} risk** "
-            f"(gate threshold: {', '.join(sorted(fail_levels, key=RISK_ORDER.index))}). "
-            "Review the recommendations above, or have an approver override the branch protection rule if this is intentional."
-        )
-
+    lines += [
+        "---",
+        "<sub>CloudGuard · pre-deployment blast-radius analysis of the Terraform plan · "
+        "no cloud credentials used · this comment updates on every push</sub>",
+    ]
     return "\n".join(lines), worst
 
 
