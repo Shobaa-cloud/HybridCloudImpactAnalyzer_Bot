@@ -22,7 +22,7 @@
           "cidr_blocks": ["0.0.0.0/0"],
           "from_port": 22,
           "to_port": 22,
-          "tags": {"Name": "Web-Security-Group", "Environment": "production"}
+          "tags": {"Name": "Web-Security-Group-v2", "Environment": "production"}
         },
         "after_unknown": {}
       }
