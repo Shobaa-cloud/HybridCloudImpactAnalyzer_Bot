@@ -17,7 +17,7 @@
         },
         "after": {
           "id": "/app/production",
-          "retention_in_days": 30,
+          "retention_in_days": 60,
           "tags": {"Environment": "dev"}
         },
         "after_unknown": {}
