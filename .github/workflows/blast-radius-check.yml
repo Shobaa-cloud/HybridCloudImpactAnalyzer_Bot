@@ -1,0 +1,67 @@
+name: Blast Radius Check
+
+on:
+  pull_request:
+    paths:
+      - "samples/**.json"
+      - "**.tfplan.json"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  # Comma-separated risk levels that fail this check (block the PR if
+  # branch protection requires it). Loosen to "" to never block, or
+  # widen to "HIGH,CRITICAL" to also block on HIGH.
+  CI_FAIL_ON_RISK: "CRITICAL"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python -m pytest tests/ -q
+
+  analyze:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements.txt
+
+      # Demo-friendly trigger: any changed plan JSON under samples/ in this
+      # PR is treated as "the plan for this change" and gets analyzed. In a
+      # real deployment, replace this with a step that runs
+      # `terraform plan` + `terraform show -json` against your actual
+      # infrastructure and passes that file's path instead.
+      - name: Find changed plan files
+        id: changed
+        run: |
+          FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- 'samples/*.json' '**.tfplan.json' || true)
+          echo "files<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$FILES" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      # All changed files go into a single call so the PR gets one
+      # aggregated comment (updated in place on re-push) instead of one
+      # comment per file. This step's own exit code is the actual gate --
+      # a non-zero exit here fails the job and shows as a red X on the PR.
+      - name: Run blast-radius analysis and comment on PR
+        if: steps.changed.outputs.files != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          FILES="${{ steps.changed.outputs.files }}"
+          python ci/pr_commenter.py $FILES

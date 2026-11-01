@@ -1,0 +1,108 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.7.5",
+  "resource_changes": [
+    {
+      "address": "azurerm_network_security_rule.dr_rdp_rule",
+      "mode": "managed",
+      "type": "azurerm_network_security_rule",
+      "name": "dr_rdp_rule",
+      "provider_name": "registry.terraform.io/hashicorp/azurerm",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "id": "nsr-dr-001",
+          "destination_port_range": "3389",
+          "source_address_prefix": "10.0.0.0/8",
+          "access": "Allow",
+          "tags": {"Environment": "production"}
+        },
+        "after": {
+          "id": "nsr-dr-001",
+          "destination_port_range": "3389",
+          "source_address_prefix": "*",
+          "access": "Allow",
+          "tags": {"Environment": "production"}
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "azurerm_linux_virtual_machine.dr_app",
+      "mode": "managed",
+      "type": "azurerm_linux_virtual_machine",
+      "name": "dr_app",
+      "provider_name": "registry.terraform.io/hashicorp/azurerm",
+      "change": {
+        "actions": ["no-op"],
+        "before": {"id": "dr-app-vm-001", "tags": {"Environment": "production"}},
+        "after": {"id": "dr-app-vm-001", "tags": {"Environment": "production"}},
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "google_storage_bucket.backup_archive",
+      "mode": "managed",
+      "type": "google_storage_bucket",
+      "name": "backup_archive",
+      "provider_name": "registry.terraform.io/hashicorp/google",
+      "change": {
+        "actions": ["no-op"],
+        "before": {"id": "backup-archive-bucket", "labels": {"environment": "production"}},
+        "after": {"id": "backup-archive-bucket", "labels": {"environment": "production"}},
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_instance.primary_app",
+      "mode": "managed",
+      "type": "aws_instance",
+      "name": "primary_app",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["no-op"],
+        "before": {"id": "i-primary001", "tags": {"Environment": "production"}},
+        "after": {"id": "i-primary001", "tags": {"Environment": "production"}},
+        "after_unknown": {}
+      }
+    }
+  ],
+  "configuration": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "azurerm_network_security_rule.dr_rdp_rule",
+          "type": "azurerm_network_security_rule",
+          "name": "dr_rdp_rule",
+          "expressions": {}
+        },
+        {
+          "address": "azurerm_linux_virtual_machine.dr_app",
+          "type": "azurerm_linux_virtual_machine",
+          "name": "dr_app",
+          "expressions": {
+            "network_security_rule_id": {
+              "references": ["azurerm_network_security_rule.dr_rdp_rule.id"]
+            }
+          }
+        },
+        {
+          "address": "google_storage_bucket.backup_archive",
+          "type": "google_storage_bucket",
+          "name": "backup_archive",
+          "expressions": {
+            "source_vm": {
+              "references": ["azurerm_linux_virtual_machine.dr_app.id"]
+            }
+          }
+        },
+        {
+          "address": "aws_instance.primary_app",
+          "type": "aws_instance",
+          "name": "primary_app",
+          "expressions": {}
+        }
+      ]
+    }
+  }
+}

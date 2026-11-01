@@ -1,0 +1,62 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.7.5",
+  "resource_changes": [
+    {
+      "address": "aws_route_table.private_rt",
+      "mode": "managed",
+      "type": "aws_route_table",
+      "name": "private_rt",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "id": "rtb-0abc111",
+          "route": [{"cidr_block": "0.0.0.0/0", "nat_gateway_id": "nat-0old111"}],
+          "tags": {"Name": "Private-Route-Table", "Environment": "production"}
+        },
+        "after": {
+          "id": "rtb-0abc111",
+          "route": [{"cidr_block": "0.0.0.0/0", "nat_gateway_id": "nat-0new222"}],
+          "tags": {"Name": "Private-Route-Table", "Environment": "production"}
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_instance.batch_worker",
+      "mode": "managed",
+      "type": "aws_instance",
+      "name": "batch_worker",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["no-op"],
+        "before": {"id": "i-0dev11111", "tags": {"Environment": "production"}},
+        "after": {"id": "i-0dev11111", "tags": {"Environment": "production"}},
+        "after_unknown": {}
+      }
+    }
+  ],
+  "configuration": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "aws_route_table.private_rt",
+          "type": "aws_route_table",
+          "name": "private_rt",
+          "expressions": {}
+        },
+        {
+          "address": "aws_instance.batch_worker",
+          "type": "aws_instance",
+          "name": "batch_worker",
+          "expressions": {
+            "route_table_id": {
+              "references": ["aws_route_table.private_rt.id"]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

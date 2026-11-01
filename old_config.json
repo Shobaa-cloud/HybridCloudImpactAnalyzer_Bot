@@ -1,5 +1,0 @@
-{
-    "resource": "Security Group",
-    "port": 22,
-    "allowed_ip": "192.168.1.10"
-}

@@ -1,0 +1,39 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.7.5",
+  "resource_changes": [
+    {
+      "address": "aws_cloudwatch_log_group.app_logs",
+      "mode": "managed",
+      "type": "aws_cloudwatch_log_group",
+      "name": "app_logs",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "id": "/app/production",
+          "retention_in_days": 14,
+          "tags": {"Environment": "dev"}
+        },
+        "after": {
+          "id": "/app/production",
+          "retention_in_days": 30,
+          "tags": {"Environment": "dev"}
+        },
+        "after_unknown": {}
+      }
+    }
+  ],
+  "configuration": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "aws_cloudwatch_log_group.app_logs",
+          "type": "aws_cloudwatch_log_group",
+          "name": "app_logs",
+          "expressions": {}
+        }
+      ]
+    }
+  }
+}
