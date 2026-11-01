@@ -9,7 +9,7 @@
       "name": "private_rt",
       "provider_name": "registry.terraform.io/hashicorp/aws",
       "change": {
-        "actions": ["update"],
+        "actions": ["delete"],
         "before": {
           "id": "rtb-0abc111",
           "route": [{"cidr_block": "0.0.0.0/0", "nat_gateway_id": "nat-0old111"}],
